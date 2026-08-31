@@ -1,48 +1,26 @@
-# sddharness + Herdr
+# Herdr SDD Harness
 
-Mini-arnês **Spec Driven Development (SDD)** que instala em qualquer
-repositório e orquestra features com agentes. O estado mora no disco;
-o Herdr (opt-in) só executa Claude Code, Codex e Cursor Agent.
+Um arnês que instala no **seu** repositório e conduz uma feature do
+pedido até o merge. Você fala só com um agente — o **leader**. Ele
+pede aprovação antes de qualquer código, abre um worktree, chama quem
+implementa e quem revisa, e faz o merge.
 
-Você conversa **só com o leader**. Spec, aprovação humana, git e merge
-continuam no harness. Código da feature sai no worktree, não na raiz.
+O [Herdr](https://herdr.dev) é o terminal onde esses agentes rodam
+(Claude Code, Codex e Cursor Agent), cada um no seu pane.
 
-## Caminho rápido
+## Como funciona, em uma frase
 
-1. Clone o kit e confirme Node ≥ 20.
-2. Instale Herdr, Claude Code, Codex e Cursor Agent; autentique cada um.
-3. Instale o skeleton no **projeto alvo** (`./bin/sddharness init …`).
-4. Ligue `runtime=herdr` e o trio recomendado de executors.
-5. Entre no projeto com `herdr`, rode `claude` **dentro** do pane e
-   execute `/sddharness init`.
+Pedido → spec no disco → **você aprova** → implementação no worktree →
+review → merge na branch da tarefa.
 
-Checklist de verificação:
+## 1. Instalar as ferramentas
 
-- [ ] `herdr --version`, `claude --version`, `codex --version` e `agent --version` (ou `cursor-agent --version`) respondem.
-- [ ] `node sddharness/scripts/config.mjs list` no projeto alvo mostra `runtime: herdr`.
-- [ ] O leader roda dentro do Herdr (`HERDR_ENV=1`). Sem isso o adapter recusa spawn.
-
-## 1. Clonar o kit
-
-Repositório: [github.com/lutian/herdr-sdd-harness](https://github.com/lutian/herdr-sdd-harness).
-
-```bash
-git clone https://github.com/lutian/herdr-sdd-harness.git
-cd herdr-sdd-harness
-node --version   # precisa ser >= 20
-npm test         # opcional: testes do kit
-```
-
-Este clone **é o kit**, não o app em que você vai implementar features.
-O passo 4 instala o skeleton no outro repositório.
-
-## 2. Instalar as ferramentas
-
-Precisam estar no `PATH` e autenticadas **antes** de ligar o runtime Herdr.
+Você precisa de **Node.js 20 ou superior** e destas quatro CLIs no
+`PATH`, já autenticadas.
 
 ### Herdr
 
-Linux / macOS:
+Linux e macOS:
 
 ```bash
 curl -fsSL https://herdr.dev/install.sh | sh
@@ -54,56 +32,57 @@ Windows (PowerShell):
 powershell -ExecutionPolicy Bypass -c "irm https://herdr.dev/install.ps1 | iex"
 ```
 
-Docs: [herdr.dev/docs/install](https://herdr.dev/docs/install/).
+Guia: [herdr.dev/docs/install](https://herdr.dev/docs/install/).
 
 ### Claude Code
 
+É o agente com quem você conversa (o leader).
+
 ```bash
 curl -fsSL https://claude.ai/install.sh | bash
-# ou: npm install -g @anthropic-ai/claude-code
-claude   # autentique na primeira execução
+claude
 ```
 
-Docs: [code.claude.com](https://code.claude.com/docs).
+Na primeira execução, autentique com a conta Anthropic.
+Guia: [code.claude.com](https://code.claude.com/docs).
 
-### Codex CLI
+### Codex
+
+É quem escreve o código da feature.
 
 ```bash
 npm install -g @openai/codex
-# ou: brew install --cask codex
-codex   # autentique (conta OpenAI / ChatGPT)
+codex
 ```
 
-Docs: [developers.openai.com/codex/cli](https://developers.openai.com/codex/cli).
+Autentique com a conta OpenAI / ChatGPT.
+Guia: [developers.openai.com/codex/cli](https://developers.openai.com/codex/cli).
 
-### Cursor Agent CLI
+### Cursor Agent
+
+É quem redige o spec (e pode substituir outro papel, se você quiser).
 
 ```bash
 curl https://cursor.com/install -fsS | bash
-```
-
-O binário costuma ser `agent` e/ou `cursor-agent`. Autentique:
-
-```bash
 agent login
-# ou: cursor-agent login
 ```
 
-Docs: [cursor.com/docs/cli](https://cursor.com/docs/cli/overview).
+O comando pode se chamar `agent` ou `cursor-agent`, conforme a
+instalação. Guia: [cursor.com/docs/cli](https://cursor.com/docs/cli/overview).
 
-### Conferir o PATH
+### Conferir
 
 ```bash
+node --version          # >= 20
 herdr --version
 claude --version
 codex --version
 agent --version || cursor-agent --version
-node --version
 ```
 
-### Integrações Herdr
+### Ligar as integrações do Herdr
 
-Depois dos CLIs no PATH:
+Com as CLIs no PATH:
 
 ```bash
 herdr integration install claude
@@ -112,49 +91,50 @@ herdr integration install cursor
 herdr integration status
 ```
 
-Isso instala hooks para o Herdr ver `working` / `idle` / `blocked` / `done`.
-Sem integração o spawn ainda pode funcionar, mas o estado fica menos
-confiável.
+Assim o Herdr enxerga se um agente está trabalhando, ocioso, bloqueado
+ou pronto.
 
-## 3. Instalar o arnês no projeto alvo
+## 2. Clonar este repositório
 
-Ainda no clone do kit:
+Este repo é o **instalador** do arnês, não o projeto em que você vai
+codar.
+
+```bash
+git clone https://github.com/lutian/herdr-sdd-harness.git
+cd herdr-sdd-harness
+```
+
+## 3. Instalar o arnês no seu projeto
+
+O projeto alvo precisa ser um repositório git.
 
 ```bash
 ./install.sh /caminho/do-seu-projeto
-# ou
-./bin/sddharness init /caminho/do-seu-projeto
 ```
 
-A cópia é conservadora: arquivos que já existem não são sobrescritos.
+Ou: `./bin/sddharness init /caminho/do-seu-projeto`.
 
-### Estrutura no projeto alvo
+Arquivos que já existem no destino **não** são sobrescritos.
+
+Depois da instalação, o seu projeto ganha (entre outros):
 
 ```
-projeto/
-├── CLAUDE.md
-├── .claude/                  # agents + /sddharness
-├── .cursor/                  # agents + /sddharness
-├── .sddharness/
-│   ├── config.json           # runtime, executors, quota
-│   └── session.json          # gitignored (git + panes Herdr)
-├── .worktrees/               # gitignored
-└── sddharness/
-    ├── AGENTS.md
-    ├── feature_list.json
-    ├── docs/  progress/  specs/
-    └── scripts/              # git-session, config, herdr-agent, runtime/
+seu-projeto/
+├── .sddharness/config.json    # quem executa cada papel
+├── sddharness/                # specs, progresso, scripts
+├── .claude/ e .cursor/        # comando /sddharness
+└── .worktrees/                # código de cada feature (criado na hora)
 ```
 
-A partir daqui, **cwd = raiz do projeto alvo**.
+A partir daqui, todos os comandos são na **raiz do seu projeto**.
 
-## 4. Ligar o runtime Herdr
+## 4. Configurar quem faz o quê
 
-O default do skeleton é `runtime: native` (subagentes da IDE, sem Herdr).
-Para o fluxo Codex / Claude / Cursor:
+No seu projeto:
 
 ```bash
 cd /caminho/do-seu-projeto
+
 node sddharness/scripts/config.mjs set runtime herdr
 node sddharness/scripts/config.mjs set spec_author executor cursor
 node sddharness/scripts/config.mjs set spec_author mode plan
@@ -163,246 +143,149 @@ node sddharness/scripts/config.mjs set reviewer executor claude
 node sddharness/scripts/config.mjs list
 ```
 
-Trio recomendado (não é o default portátil):
+| Papel | Quem executa | Função |
+|-------|----------------|--------|
+| leader | Claude Code (a sessão em que você está) | Pergunta, cria branch, coordena |
+| spec_author | Cursor Agent (modo plan) | Escreve requirements, design e tasks |
+| implementer | Codex | Implementa no worktree |
+| reviewer | Claude Code | Aprova ou pede mudanças — sem editar código |
 
-| Role | executor | mode |
-|------|----------|------|
-| leader | claude (a sessão atual) | — |
-| spec_author | cursor | plan |
-| implementer | codex | agent |
-| reviewer | claude | ask |
+Para ver a configuração a qualquer momento:
 
-O leader **nunca** é spawnado pelo adapter. Ele já é o `claude` (ou o
-Cursor) com quem você fala.
+```
+/sddharness config list
+```
 
-`inherit` no `model` = não passar `--model` ao CLI. O slug do Cursor
-(Grok, etc.) é o que a **sua** conta expõe — não hardcodeie `grok-4.6`
-sem conferir `agent models`.
+ou `node sddharness/scripts/config.mjs list`.
 
-## 5. Executar o arnês no dia a dia
+## 5. Primeira sessão
+
+No seu projeto:
 
 ```bash
 cd /caminho/do-seu-projeto
 herdr
 ```
 
-Dentro do pane Herdr:
+No pane que abrir, suba o leader:
 
 ```bash
 claude
 ```
 
-Esse Claude é o **leader**. Depois:
+O Claude precisa nascer **dentro** do Herdr. Fora dele o arnês não
+consegue abrir os outros agentes.
+
+No chat do Claude:
 
 ```
 /sddharness init
 ```
 
-O que acontece:
+Responda às perguntas. O fluxo típico é este:
 
-1. `filldocs` — preenche architecture / conventions / verification (ou bloqueia se o repo estiver vazio).
-2. Pede id Jira **ou** descrição da tarefa (sem Jira).
-3. Pergunta a branch base: `Vou criar a branch para começar a trabalhar a partir da branch atual ({nome}), posso continuar ou quer mudar de branch?`
-4. Cria a branch mãe (`feature/JIRA-123-…` ou `feature/1-…`).
-5. `Quer que inicie o fluxo com a feature-01?`
-6. Worktree + `write-spec` (spec_author no executor configurado).
-7. `Aprova a feature-01 de "{título}"?` — **portão humano**. Sem isso não há código.
-8. `approve`: implementer → reviewer, até `maxReviewCycles` (default 3).
-9. Merge do worktree na branch mãe → próxima feature.
+1. O leader preenche (ou pede para preencher) os docs de stack do
+   projeto. Sem esses docs, o resto não avança.
+2. Ele pede o id do Jira **ou** a descrição da tarefa, se você não
+   usa Jira.
+3. Confirma a branch de partida:
+   *Vou criar a branch para começar a trabalhar a partir da branch
+   atual (main), posso continuar ou quer mudar de branch?*
+4. Cria a branch da tarefa (`feature/PROJ-123-…` ou `feature/1-…`).
+5. *Quer que inicie o fluxo com a feature-01?*
+6. Cria um worktree e pede o spec. Você lê
+   `sddharness/specs/feature-01/` e responde se aprova.
+7. Só depois da sua aprovação o Codex implementa e o Claude revisa.
+8. Se a review pedir mudanças, o Codex corrige e o review roda de
+   novo (até 3 ciclos). Aprovado: merge na branch da tarefa.
 
-Confirmações no chat (`Sim`, `Aprovo`, `pode continuar`) valem como o
-próximo passo.
+No chat, `Sim`, `Aprovo` e `pode continuar` valem como o próximo passo.
 
-Quem faz o quê:
+### Checklist da primeira vez
 
-| Camada | Dono |
-|--------|------|
-| Spec, gate humano, estado, git/worktrees | sddharness |
-| Panes e execução dos CLIs | Herdr |
-| Código da feature | worktree (`.worktrees/…`) |
-| Artefatos SDD | `sddharness/` na **raiz** (`HARNESS_ROOT`) |
+- [ ] As quatro CLIs respondem no terminal.
+- [ ] `config list` mostra `runtime: herdr`.
+- [ ] Você entrou com `herdr` e só então rodou `claude`.
+- [ ] `/sddharness init` pediu Jira ou a descrição da tarefa.
 
-Herdr **não** cria worktrees. Só `git-session.mjs`.
+## 6. Comandos que você usa
 
-## 6. Comandos `/sddharness`
+Digite no chat do leader (funciona no Claude Code e no Cursor):
 
-Slash igual no Cursor e no Claude Code.
+| Comando | Quando usar |
+|---------|-------------|
+| `/sddharness init` | Começar do zero (recomendado) |
+| `/sddharness filldocs` | Só preencher os docs de stack |
+| `/sddharness jira PROJ-123` | Já tem ticket no Jira |
+| `/sddharness task <descrição>` | Sem Jira: cola o texto da tarefa |
+| `/sddharness write-spec feature-01` | Gerar o spec de uma feature |
+| `/sddharness approve feature-01` | Depois que você leu e aprovou o spec |
+| `/sddharness config list` | Ver executors, modelos e ciclos de review |
+| `/sddharness config <papel> executor cursor` | Trocar quem executa um papel |
+| `/sddharness config <papel> model <slug>` | Trocar o modelo |
+| `/sddharness config orchestration maxReviewCycles 3` | Limite do loop implementa → revisa |
 
-| Comando | Função |
-|---------|--------|
-| `/sddharness init` | Sessão amigável (filldocs → Jira/task → branch → spec → approve) |
-| `/sddharness filldocs` | Preenche os 3 docs de stack |
-| `/sddharness jira PROJ-123` | Importa features do Jira |
-| `/sddharness task <descrição>` | Import sem Jira (id em `progress/history.md`) |
-| `/sddharness write-spec feature-01` | Worktree + spec_author |
-| `/sddharness approve feature-01` | Implement + review (loop) + merge |
-| `/sddharness config list` | Mostra runtime, executors, models, modes, capabilities, cota |
-| `/sddharness config <agente> executor\|model\|mode <valor>` | Troca um campo do role |
-| `/sddharness config runtime native\|herdr` | Liga/desliga Herdr |
-| `/sddharness config orchestration maxReviewCycles <n>` | Teto do loop de review |
-
-Não existe `/sddharness execute`. Use `write-spec`.
-
-O slash `config` grava via script (não edite o JSON à mão):
-
-```bash
-node sddharness/scripts/config.mjs get
-node sddharness/scripts/config.mjs list
-node sddharness/scripts/config.mjs set runtime herdr
-node sddharness/scripts/config.mjs set spec_author executor cursor
-node sddharness/scripts/config.mjs set spec_author model grok-4.6
-node sddharness/scripts/config.mjs set spec_author mode plan
-node sddharness/scripts/config.mjs set spec_author capabilities.writeCode false
-node sddharness/scripts/config.mjs set orchestration maxReviewCycles 3
-node sddharness/scripts/config.mjs set orchestration fallbackOrder cursor,codex,claude
-node sddharness/scripts/config.mjs set quota sessionPct 90
-```
-
-`config.mjs` faz merge: `verifyCmd` e outras chaves desconhecidas
-permanecem.
-
-### Exemplo de `config list`
+Exemplos:
 
 ```
-runtime: herdr
-maxReviewCycles: 3
-fallbackOrder: (não definido — fallback pergunta ao usuário)
-quota: sessão >= 90% | ciclo (semanal/mensal) >= 95% → claude, codex e cursor indisponíveis
-
-role            executor  model     mode   capabilities
-leader          claude    inherit   -      read,execute
-spec_author     cursor    inherit   plan   read,writeSpec
-implementer     codex     inherit   agent  read,writeCode,execute
-reviewer        claude    inherit   ask    read,execute
+/sddharness task Adicionar login com Google via OAuth
+/sddharness write-spec feature-01
+/sddharness approve feature-01
+/sddharness config spec_author model grok-4.6
 ```
 
-## 7. Fallback e cota
+O nome do modelo do Cursor é o que a sua conta lista (`agent models`).
+`inherit` significa “usa o padrão daquele CLI”.
 
-Antes de cada `spawn`/`run` o harness faz `probe` do executor do role
-(PATH, auth e % usado).
+## 7. Se um agente não puder rodar
 
-| Situação | Comportamento |
-|----------|----------------|
-| Executor ok | Usa o configurado |
-| Falhou **e** existe `orchestration.fallbackOrder` | Escolhe o próximo disponível da lista e anuncia `executor definido: cursor (claude indisponível: sessão 92%)` |
-| Falhou **e** não há `fallbackOrder` | **Não** auto-escolhe. Exit 4. O leader pergunta e espera |
-| Nenhum executor disponível | Exit 3. Para, alerta e espera você |
+Antes de abrir Codex, Claude ou Cursor, o arnês verifica se o CLI
+existe, se está autenticado e se a cota não estourou
+(cerca de **90%** da janela da sessão ou **95%** do ciclo
+semanal/mensal).
 
-A troca **não** reescreve o default global em `config.json`. Fica em
-`session.json` (`executorResolved`) só para aquela feature.
+| O que acontece | O que você faz |
+|----------------|----------------|
+| O leader pergunta qual executor usar | Responda no chat, ou `/sddharness config <papel> executor …` |
+| O leader diz que nenhum executor está disponível | Espere a cota, autentique de novo ou instale o CLI que faltou |
+| Um pane pede confirmação (“trust this directory?”) | O leader mostra a tela e espera você — ele não aperta Enter sozinho |
+| A review pediu mudanças três vezes e parou | Leia o review em `sddharness/progress/`, ajuste o spec ou o código e peça de novo |
 
-Cota (os três executors, sempre % **usado**):
-
-| Janela | Corte default |
-|--------|----------------|
-| Sessão (~5h, se o CLI expor) | ≥ 90% → indisponível |
-| Ciclo (semanal Claude/Codex, mensal Cursor) | ≥ 95% → indisponível |
-
-Se a cota for desconhecida mas o CLI estiver autenticado, o harness
-trata como disponível (evita falso positivo). CLI ausente ou auth
-falha = `disconnected`.
-
-`blocked` no Herdr (diálogo “trust this directory?”, etc.) **não**
-recebe `send-keys` automático. O adapter lê a tela (exit 2) e o leader
-mostra para você.
-
-Para auto-pick:
+Se quiser que o arnês escolha sozinho o próximo CLI disponível:
 
 ```bash
 node sddharness/scripts/config.mjs set orchestration fallbackOrder cursor,codex,claude
 ```
 
-## 8. Adapter Herdr (o leader chama; você quase não)
+Sem essa lista, ele **sempre pergunta**.
 
-Só vale com `runtime=herdr` **e** `HERDR_ENV=1` (leader dentro de um pane).
+## 8. O que o arnês guarda no seu repo
 
-```bash
-node sddharness/scripts/herdr-agent.mjs run --role implementer --cwd /abs/worktree --feature feature-01 --prompt "..."
-node sddharness/scripts/herdr-agent.mjs spawn --role spec_author --cwd /abs/repo
-node sddharness/scripts/herdr-agent.mjs prompt --role implementer --prompt "..."
-node sddharness/scripts/herdr-agent.mjs wait --role implementer
-node sddharness/scripts/herdr-agent.mjs read --role implementer
-```
+Você não precisa mexer nisso no dia a dia. Serve para achar as coisas.
 
-Exits: `2` blocked, `3` nenhum executor, `4` pergunte o executor.
+| Onde | O quê |
+|------|--------|
+| `sddharness/docs/` | Arquitetura, convenções e como verificar o projeto |
+| `sddharness/specs/feature-01/` | Spec aprovado (requirements, design, tasks) |
+| `sddharness/progress/` | Relato da implementação e da review |
+| `sddharness/feature_list.json` | Lista e status das features |
+| `.worktrees/…` | Código da feature em andamento |
+| `.sddharness/config.json` | Runtime e executors |
 
-`implementer` e `reviewer` nascem no worktree. `spec_author`,
-`docs_filler` e `jira_importer` na raiz. Todo prompt leva
-`HARNESS_ROOT` + `WORKTREE` + `capabilities`.
+Regras que o leader segue:
 
-## 9. Git / worktrees
+- Uma feature por vez.
+- Código da feature só no worktree; spec e progresso na pasta `sddharness/`.
+- Nada de implementação antes da sua aprovação do spec.
 
-Scripts (cwd = raiz do projeto):
+## Próximo passo
 
-```bash
-node sddharness/scripts/git-session.mjs current-branch
-node sddharness/scripts/git-session.mjs ensure-parent --jira KEY --title "..."
-node sddharness/scripts/git-session.mjs ensure-parent --key KEY --title "..."
-node sddharness/scripts/git-session.mjs add-worktree --jira KEY --feature feature-01 --title "..."
-node sddharness/scripts/git-session.mjs merge-worktree --feature feature-01
-node sddharness/scripts/git-session.mjs record-agent --feature feature-01 --role implementer --executor codex --pane w1:p2
-node sddharness/scripts/import-task.mjs import --description "..."
-```
-
-`--key` é sinônimo de `--jira`.
-
-| Artefato | Exemplo Jira | Exemplo task |
-|----------|--------------|--------------|
-| Branch mãe | `feature/JIRA-123-atualizacao-servico-payment` | `feature/1-atualizacao-servico-payment` |
-| Worktree | `feature/JIRA-123-01-implementando-adapters` | `feature/1-01-implementando-adapters` |
-| Path | `.worktrees/JIRA-123-01-implementando-adapters` | `.worktrees/1-01-implementando-adapters` |
-
-Uma feature por vez. Um writer no worktree. Reviewer não edita código.
-
-## 10. Agentes
-
-| Role | Papel | capabilities default |
-|------|--------|----------------------|
-| `leader` | Orquestra; git + perguntas | read, execute |
-| `docs_filler` | Docs de stack | read, writeSpec |
-| `jira_importer` | Jira → `feature_list.json` | read, writeSpec |
-| — | `import-task.mjs` (task manual) | — |
-| `spec_author` | Specs em `sddharness/specs/` | read, writeSpec |
-| `implementer` | Código no worktree | read, writeCode, execute |
-| `reviewer` | Aprova ou pede mudanças | read, execute |
-
-`approve` faz implementer → reviewer até `APPROVED` ou
-`maxReviewCycles`. Sem aprovação vira `blocked` e espera você.
-
-## 11. Runtime `native` (sem Herdr)
-
-O skeleton já nasce assim. O leader usa a tool `Agent` da IDE
-(Claude Code / Cursor). Git, gate humano e specs são os mesmos.
-Fallback de cota/CLI no contrato do leader também vale quando o
-probe falha.
-
-Para voltar:
+Instale as quatro ferramentas, clone este repo, rode `./install.sh`
+no seu projeto, configure o `runtime herdr` e abra:
 
 ```bash
-node sddharness/scripts/config.mjs set runtime native
+cd /caminho/do-seu-projeto
+herdr
 ```
 
-## 12. Validação
-
-No projeto alvo:
-
-```bash
-./sddharness/init.sh
-node sddharness/scripts/docs-ready.mjs
-node sddharness/scripts/config.mjs list
-```
-
-No kit:
-
-```bash
-npm test
-```
-
-## Fora desta versão
-
-Override por feature (`/sddharness approve --implementer cursor`),
-executor `grok` CLI e validação live de slugs de modelo.
-
----
-
-Baseado em [betta-tech/harness-sdd](https://github.com/betta-tech/harness-sdd/tree/uncle-bob-harness).
+Depois, no pane: `claude` → `/sddharness init`.

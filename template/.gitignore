@@ -1,0 +1,8 @@
+node_modules/
+.worktrees/
+.sddharness/session.json
+dist/
+out/
+*.tmp
+.DS_Store
+.env

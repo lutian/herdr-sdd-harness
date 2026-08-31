@@ -1,0 +1,18 @@
+{
+  "name": "sddharness",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Mini-arnês Spec Driven Development portável para Cursor e Claude Code",
+  "bin": {
+    "sddharness": "./bin/sddharness"
+  },
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "init": "node ./bin/sddharness init",
+    "validate": "node ./bin/sddharness validate"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

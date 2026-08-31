@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/lutian/sddharness/schema/feature_list.schema.json",
+  "title": "sddharness feature_list",
+  "type": "object",
+  "required": ["project", "features", "rules"],
+  "additionalProperties": true,
+  "properties": {
+    "project": { "type": "string", "minLength": 1 },
+    "description": { "type": "string" },
+    "source": {
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["jira", "manual"] },
+        "key": { "type": "string" }
+      },
+      "required": ["type"],
+      "additionalProperties": true
+    },
+    "rules": {
+      "type": "object",
+      "required": ["valid_status"],
+      "properties": {
+        "one_feature_at_a_time": { "type": "boolean" },
+        "require_tests_to_close": { "type": "boolean" },
+        "require_approved_spec_to_implement": { "type": "boolean" },
+        "valid_status": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["pending", "spec_ready", "in_progress", "done", "blocked"]
+          }
+        },
+        "sdd_required_when": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "features": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "title", "description", "acceptance", "status"],
+        "additionalProperties": true,
+        "properties": {
+          "id": { "type": "integer", "minimum": 1 },
+          "name": {
+            "type": "string",
+            "pattern": "^feature-[0-9]{2,}$"
+          },
+          "title": { "type": "string", "minLength": 1 },
+          "description": { "type": "string" },
+          "acceptance": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "jira_key": { "type": "string" },
+          "sdd": { "type": "boolean" },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "spec_ready", "in_progress", "done", "blocked"]
+          }
+        }
+      }
+    }
+  }
+}

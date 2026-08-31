@@ -1,0 +1,13 @@
+node_modules/
+dist/
+out/
+*.sqlite
+*.sqlite-journal
+.env
+.wwebjs_auth/
+.wwebjs_cache/
+*.tmp
+.DS_Store
+/tmp/
+
+.worktrees/

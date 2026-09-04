@@ -2,7 +2,8 @@
   "project": "seu-projeto",
   "description": "TODO: descreva o projeto em uma frase.",
   "rules": {
-    "one_feature_at_a_time": true,
+    "one_feature_at_a_time": false,
+    "max_parallel": 3,
     "require_tests_to_close": true,
     "require_approved_spec_to_implement": true,
     "valid_status": [

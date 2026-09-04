@@ -22,6 +22,7 @@
       "required": ["valid_status"],
       "properties": {
         "one_feature_at_a_time": { "type": "boolean" },
+        "max_parallel": { "type": "integer", "minimum": 1 },
         "require_tests_to_close": { "type": "boolean" },
         "require_approved_spec_to_implement": { "type": "boolean" },
         "valid_status": {
@@ -54,6 +55,7 @@
             "items": { "type": "string" }
           },
           "jira_key": { "type": "string" },
+          "repo": { "type": "string" },
           "sdd": { "type": "boolean" },
           "status": {
             "type": "string",

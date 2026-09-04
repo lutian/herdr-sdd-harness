@@ -21,6 +21,7 @@ Se falhar, **PARE**. Peça `/sddharness filldocs` ou `/sddharness init`.
 1. Leia `sddharness/feature_list.json` e `.sddharness/config.json`.
 2. Busque a issue via MCP Atlassian. Epic → filhos; Story/Task/Bug → 1+ features.
 3. Extraia title, description, acceptance, `jira_key` (não invente acceptance).
+   Atribua `repo`. Se ambíguo, pergunte. IDs únicos no workspace.
 4. Merge conservador em `sddharness/feature_list.json` (match por `jira_key`;
    `feature-01`…; `sdd: true`; `pending`).
 5. Atualize `source: { "type": "jira", "key": "<KEY>" }` e `description`

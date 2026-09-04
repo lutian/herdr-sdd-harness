@@ -16,12 +16,26 @@ describe("providers", () => {
     const { ClaudeProvider } = await load("providers/claude.mjs");
     const { CodexProvider } = await load("providers/codex.mjs");
     const { CursorProvider } = await load("providers/cursor.mjs");
+    const { OpenCodeProvider } = await load("providers/opencode.mjs");
     const claude = new ClaudeProvider({ which: () => true });
     const codex = new CodexProvider({ which: () => true });
     const cursor = new CursorProvider({ which: () => true });
+    const opencode = new OpenCodeProvider({ which: () => true });
     assert.deepEqual(claude.buildStartArgs({ model: "inherit" }), []);
     assert.deepEqual(claude.buildStartArgs({ model: "opus" }), ["--model", "opus"]);
+    assert.deepEqual(claude.buildStartArgs({ model: "opus", effort: "high" }), [
+      "--model",
+      "opus",
+      "--effort",
+      "high",
+    ]);
     assert.deepEqual(codex.buildStartArgs({ model: "gpt-5.4" }), ["-m", "gpt-5.4"]);
+    assert.deepEqual(codex.buildStartArgs({ model: "gpt-5.4", effort: "high" }), [
+      "-m",
+      "gpt-5.4",
+      "-c",
+      "model_reasoning_effort=high",
+    ]);
     assert.deepEqual(cursor.buildStartArgs({ model: "grok-4.6", mode: "plan" }), [
       "--model",
       "grok-4.6",
@@ -31,6 +45,19 @@ describe("providers", () => {
     assert.equal(claude.kind, "claude");
     assert.equal(codex.kind, "codex");
     assert.equal(cursor.kind, "cursor");
+    assert.deepEqual(opencode.buildStartArgs({ model: "openai/gpt-5", effort: "high" }), [
+      "-m",
+      "openai/gpt-5",
+      "--variant",
+      "high",
+    ]);
+    assert.deepEqual(opencode.buildStartArgs({ model: "openai/gpt-5", effort: "xhigh" }), [
+      "-m",
+      "openai/gpt-5",
+      "--variant",
+      "max",
+    ]);
+    assert.equal(opencode.kind, "opencode");
   });
 
   it("probe: missing CLI is disconnected; env quota 90/95", async () => {

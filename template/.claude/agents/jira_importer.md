@@ -27,8 +27,11 @@ Se falhar, **PARE**. Peça `/sddharness filldocs` ou `/sddharness init`.
 1. Leia `sddharness/feature_list.json` e `.sddharness/config.json`.
 2. Busque a issue via MCP Atlassian. Epic → filhos; Story/Task/Bug → 1+ features.
 3. Extraia title, description, acceptance, `jira_key` (não invente acceptance).
-4. Merge conservador em `sddharness/feature_list.json` (match por `jira_key`;
-   `feature-01`…; `sdd: true`; `pending`).
+   Atribua `repo` via components do Jira (`workspace.json` → `jira.components`)
+   ou menção no texto. Se restar mais de um candidato, **PERGUNTE** — não chute.
+4. IDs `feature-01`… são únicos no workspace. Mesmo `source.key` no épico.
+5. Merge conservador no feature_list do workspace e recorte por repo
+   (match por `jira_key`; `sdd: true`; `pending`).
 5. Atualize `source: { "type": "jira", "key": "<KEY>" }` e `description`
    com o summary da issue/épico (serve de título para a branch mãe).
 6. `node sddharness/scripts/validate-features.mjs`.

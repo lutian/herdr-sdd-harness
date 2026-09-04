@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 
-export const EXECUTORS = ["claude", "codex", "cursor"];
+export const EXECUTORS = ["claude", "codex", "cursor", "opencode"];
 
 export function usedPercent({ used, remaining } = {}) {
   if (used != null && Number.isFinite(Number(used))) return Number(used);
@@ -63,18 +63,23 @@ export class AgentProvider {
     return ["--model", model];
   }
 
-  buildStartArgs({ model, mode } = {}) {
+  buildStartArgs({ model, mode, effort } = {}) {
     const args = [];
     if (model && model !== "inherit") args.push(...this.modelFlag(model));
     if (mode && this.kind === "cursor" && mode !== "agent") {
       args.push("--mode", mode);
     }
+    if (effort && effort !== "inherit") {
+      if (this.kind === "claude") args.push("--effort", effort === "max" ? "xhigh" : effort);
+      if (this.kind === "codex") args.push("-c", `model_reasoning_effort=${effort}`);
+      if (this.kind === "opencode") args.push("--variant", effort === "xhigh" ? "max" : effort);
+    }
     return args;
   }
 
-  buildPromptPreamble({ role, harnessRoot, worktree, capabilities } = {}) {
+  buildPromptPreamble({ role, harnessRoot, worktree, capabilities, effort } = {}) {
     const wt = worktree || "";
-    return [
+    const lines = [
       `Você é o ${role} do SDD Harness.`,
       `HARNESS_ROOT=${harnessRoot}`,
       `WORKTREE=${wt}`,
@@ -82,7 +87,9 @@ export class AgentProvider {
       "Leia/escreva artefatos SDD só em $HARNESS_ROOT/sddharness/",
       "Edite código só em $WORKTREE e só se capabilities.writeCode",
       `Contrato: $HARNESS_ROOT/.claude/agents/${role}.md (ou .cursor/agents/${role}.md)`,
-    ].join("\n");
+    ];
+    if (effort && this.kind === "cursor") lines.push(`Esforço preferido: ${effort}`);
+    return lines.join("\n");
   }
 
   cliPresent() {
@@ -108,7 +115,7 @@ export class AgentProvider {
         ? await this.readLiveQuota()
         : { sessionPct, weeklyPct };
     if (live.sessionPct == null && live.weeklyPct == null) {
-      return { ok: true, reason: "ok" };
+      return { ok: true, reason: "unknown" };
     }
     return decideQuota(live, quota);
   }

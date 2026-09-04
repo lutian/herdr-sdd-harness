@@ -1,5 +1,5 @@
 ---
-description: Arnês SDD — init | filldocs | jira | task | write-spec | approve | config
+description: Arnês SDD — init | filldocs | jira | task | write-spec | approve | config | usage
 ---
 
 # /sddharness
@@ -15,16 +15,21 @@ Comando unificado do mini-arnês Spec Driven Development.
 /sddharness task <descrição da tarefa>
 /sddharness write-spec <feature-XX>
 /sddharness approve <feature-XX>
+/sddharness usage
 /sddharness config list
-/sddharness config <agente> executor|model|mode <valor>
-/sddharness config runtime <native|herdr>
-/sddharness config orchestration maxReviewCycles <n>
+/sddharness config set <agente> executor|model|mode|effort <valor>
+/sddharness config set runtime <native|herdr>
+/sddharness config set --task KEY <agente> executor <valor>
+/sddharness config set --feature feature-XX <agente> executor <valor>
+/sddharness config set orchestration maxReviewCycles <n>
+/sddharness config set orchestration maxParallel <n>
 ```
 
 `$ARGUMENTS` = resto da linha após `/sddharness`.
 
-CLI `./bin/sddharness init <path>` = instalar skeleton.  
-Slash `/sddharness init` = sessão amigável.
+CLI `sddharness init <path>` = instalar skeleton.  
+`sddharness start` já abre o leader e conduz tarefa nova ou pendente.  
+Slash `/sddharness init` = atalho opcional do mesmo fluxo.
 
 ## Gate de docs
 
@@ -38,10 +43,10 @@ node sddharness/scripts/git-session.mjs ensure-parent --jira KEY --title "..."
 node sddharness/scripts/git-session.mjs ensure-parent --key KEY --title "..."
 node sddharness/scripts/git-session.mjs add-worktree --jira KEY --feature feature-01 --title "..."
 node sddharness/scripts/git-session.mjs add-worktree --key KEY --feature feature-01 --title "..."
-node sddharness/scripts/git-session.mjs merge-worktree --feature feature-01
+node sddharness/scripts/git-session.mjs merge-worktree --feature feature-01 --root <abs>
 ```
 
-`--key` é sinônimo de `--jira` (chave da sessão: id Jira ou id numérico da task).
+`--key` é sinônimo de `--jira`. `--root` = repo da feature.
 
 Frases canônicas:
 
@@ -50,73 +55,52 @@ Frases canônicas:
 - `Criando o worktree "{worktreeBranch}"…`
 - `Fazendo merge do worktree "{worktreeBranch}" na branch "{parentBranch}"…`
 
-Arnês em `sddharness/`; código no worktree (`.worktrees/`).
-
 Se `runtime=herdr`: workers via `node sddharness/scripts/herdr-agent.mjs run`.
-Herdr **não** cria worktrees. Exits 2/3/4 = blocked / nenhum executor / perguntar.
+Nunca lance implementer com prompt longo — use o `coordinator`.
+Exits 2/3/4 = blocked / nenhum executor / perguntar.
+
+Antes de cada onda: `node sddharness/scripts/quota.mjs check --roles …`. Cole `usage` se warn/block.
 
 ## Roteamento
 
 ### 1. `init`
 
-1. `./sddharness/init.sh` + `docs_filler`.
-2. Blocked → pare.
-3. Ready → `Insira o id da tarefa do Jira, ou cole a descrição da tarefa`
-4. Texto no formato `PROJ-123` → `jira`. Qualquer outro texto → `task`.
-5. `current-branch` → pergunta da base atual.
-6. Continuar → `Criando a branch "…"…` + `ensure-parent`.
-7. `Quer que inicie o fluxo com a feature-01?`
-8. Sim → `write-spec` → `Aprova…?` → `approve` (com merge) → próxima.
+1. `./sddharness/init.sh` + `docs_filler` por repo.
+2. Ready → Jira ou descrição.
+3. Branch base + `ensure-parent` **em cada repo** da tarefa.
+4. Onda de `write-spec` até `maxParallel`.
 
 ### 2. `filldocs`
 
-Lance `docs_filler`.
+Lance `docs_filler` no repo alvo.
 
 ### 3. `jira <KEY>`
 
-1. Docs prontos → `jira_importer`.
-2. Leader (não o importer) conduz pergunta da base + `ensure-parent`.
-3. Depois: `Quer que inicie o fluxo com a feature-01?`
+`jira_importer`: cada feature ganha `repo`. Se ambíguo, **pergunte**. Mesmo `source.key`.
 
 ### 4. `task <descrição>`
 
-Para quem não usa Jira. Cole o texto da tarefa.
+`import-task.mjs import --description "..." [--repo id]`.
 
-1. Docs prontos → `node sddharness/scripts/import-task.mjs import --description "..."`.
-2. O script aloca o próximo id em `sddharness/progress/history.md` (1 se vazio; senão N+1) e grava `source.type: "manual"`.
-3. Leader conduz pergunta da base + `ensure-parent --key <id>`.
-4. Depois: `Quer que inicie o fluxo com a feature-01?`
+### 5. `write-spec`
 
-### 5. `write-spec <feature-XX>`
+Onda de specs. Aprovação por feature ou lote.
 
-1. Docs + session com parentBranch.
-2. `Criando o worktree "…"…` + `add-worktree`.
-3. `spec_author` (specs em `sddharness/specs/`) → `spec_ready` → pergunta approve.
+### 6. `approve`
 
-### 6. `approve <feature-XX>`
+Quota check → coordinator → implementers → reviewer → merge serial por repo.
 
-1. `in_progress` → loop até `maxReviewCycles` (default 3):
-   implementer → reviewer. APPROVED → `done`. CHANGES_REQUESTED →
-   próximo ciclo. Sem aprovação → `blocked` e espere o humano.
-2. Se `runtime=herdr`: `herdr-agent.mjs run` (cwd = worktree). Exits
-   2/3/4 = blocked / nenhum executor / perguntar executor.
-3. `Fazendo merge do worktree "…" na branch "{parent}"…` + `merge-worktree`.
-4. Próxima feature.
+### 7. `usage`
 
-### 7. `config`
+Rode `sddharness usage` e cole a saída.
 
-```
-node sddharness/scripts/config.mjs list
-node sddharness/scripts/config.mjs set <role> executor|model|mode <valor>
-node sddharness/scripts/config.mjs set runtime native|herdr
-```
+### 8. `config`
 
-Agentes: `leader`, `spec_author`, `implementer`, `reviewer`, `jira_importer`, `docs_filler`.
-`/sddharness config list` lista executors, models e maxReviewCycles.
+Rode `sddharness config …` e cole a saída. Sem `cd`, sem `node …/config.mjs`.
+Coordinator e implementer compartilham executor, não esforço.
 
 ## Regras
 
-- Uma feature por vez.
-- Sem `execute` — use `write-spec`.
-- Confirmações `Sim`/`Aprovo`/`continuar` no chat valem como o próximo passo.
+- Mesmo épico em paralelo; merge serial por repo.
+- Sem `execute`. Sem tool `Agent` se o boot foi `sddharness start`.
 - PT-BR.

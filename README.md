@@ -1,12 +1,13 @@
 # Herdr SDD Harness
 
-Um arnês que instala no **seu** repositório e conduz uma feature do
-pedido até o merge. Você fala só com um agente — o **leader**. Ele
-pede aprovação antes de qualquer código, abre um worktree, chama quem
-implementa e quem revisa, e faz o merge.
+Um arnês **global** (`~/.sddharness`) com workspaces de um ou mais
+repos. Você fala só com o **leader** (Claude, Codex, Cursor ou OpenCode, via
+`sddharness start` + Herdr). Ele quebra o épico por repo, pede
+aprovação, abre worktrees e — via **coordinator** — implementa features
+do mesmo ticket em paralelo.
 
 O [Herdr](https://herdr.dev) é o terminal onde esses agentes rodam
-(Claude Code, Codex e Cursor Agent), cada um no seu pane.
+(Claude Code, Codex, Cursor Agent e OpenCode), cada um no seu pane.
 
 ## Como funciona, em uma frase
 
@@ -15,8 +16,8 @@ review → merge na branch da tarefa.
 
 ## 1. Instalar as ferramentas
 
-Você precisa de **Node.js 20 ou superior** e destas quatro CLIs no
-`PATH`, já autenticadas.
+Você precisa de **Node.js 20 ou superior** e destas CLIs no
+`PATH`, já autenticadas (use as que for de fato executar).
 
 ### Herdr
 
@@ -36,7 +37,7 @@ Guia: [herdr.dev/docs/install](https://herdr.dev/docs/install/).
 
 ### Claude Code
 
-É o agente com quem você conversa (o leader).
+Pode ser o leader ou um worker (você escolhe no config).
 
 ```bash
 curl -fsSL https://claude.ai/install.sh | bash
@@ -70,6 +71,17 @@ agent login
 O comando pode se chamar `agent` ou `cursor-agent`, conforme a
 instalação. Guia: [cursor.com/docs/cli](https://cursor.com/docs/cli/overview).
 
+### OpenCode
+
+Pode ser leader ou worker (`config set <papel> executor opencode`).
+
+```bash
+curl -fsSL https://opencode.ai/install | bash
+opencode
+```
+
+Autentique no primeiro uso. Guia: [opencode.ai](https://opencode.ai).
+
 ### Conferir
 
 ```bash
@@ -78,6 +90,7 @@ herdr --version
 claude --version
 codex --version
 agent --version || cursor-agent --version
+opencode --version
 ```
 
 ### Ligar as integrações do Herdr
@@ -88,6 +101,7 @@ Com as CLIs no PATH:
 herdr integration install claude
 herdr integration install codex
 herdr integration install cursor
+herdr integration install opencode
 herdr integration status
 ```
 
@@ -104,83 +118,69 @@ git clone https://github.com/lutian/herdr-sdd-harness.git
 cd herdr-sdd-harness
 ```
 
-## 3. Instalar o arnês no seu projeto
-
-O projeto alvo precisa ser um repositório git.
+## 3. Instalar o CLI e criar um workspace
 
 ```bash
-./install.sh /caminho/do-seu-projeto
+npm link
+sddharness workspace create meu-time
+sddharness repo add /caminho/do-repo-a
+sddharness repo add /caminho/do-repo-b
+sddharness start
 ```
 
-Ou: `./bin/sddharness init /caminho/do-seu-projeto`.
+`init <path>` continua instalando artefatos no repo (e liga ao workspace
+ativo). Home: `~/.sddharness` (ou `SDDHARNESS_HOME`).
 
-Arquivos que já existem no destino **não** são sobrescritos.
-
-Depois da instalação, o seu projeto ganha (entre outros):
+No repo:
 
 ```
 seu-projeto/
-├── .sddharness/config.json    # quem executa cada papel
-├── sddharness/                # specs, progresso, scripts
-├── .claude/ e .cursor/        # comando /sddharness
-└── .worktrees/                # código de cada feature (criado na hora)
+├── .sddharness/config.json   # só verifyCmd local
+├── sddharness/
+├── .claude/ .cursor/ .codex/
+└── .worktrees/
 ```
 
-A partir daqui, todos os comandos são na **raiz do seu projeto**.
+Executors e runtime ficam em `~/.sddharness` (home e workspace).
 
 ## 4. Configurar quem faz o quê
 
-No seu projeto:
+Só pelo CLI / slash — sem `cd` no repo e sem `node …/config.mjs`:
 
-```bash
-cd /caminho/do-seu-projeto
-
-node sddharness/scripts/config.mjs set runtime herdr
-node sddharness/scripts/config.mjs set spec_author executor cursor
-node sddharness/scripts/config.mjs set spec_author mode plan
-node sddharness/scripts/config.mjs set implementer executor codex
-node sddharness/scripts/config.mjs set reviewer executor claude
-node sddharness/scripts/config.mjs list
 ```
+/sddharness config list
+/sddharness config set runtime herdr
+/sddharness config set spec_author executor cursor
+/sddharness config set spec_author mode plan
+/sddharness config set implementer executor codex
+/sddharness config set reviewer executor claude
+
+/sddharness config set --task PROJ-123 implementer executor opencode
+/sddharness config set --feature feature-01 reviewer executor claude
+/sddharness config list --task PROJ-123
+```
+
+O mesmo no terminal: `sddharness config …`. Overlay `--task` / `--feature` não muda o default global. Resolução: feature → tarefa → workspace → home.
 
 | Papel | Quem executa | Função |
 |-------|----------------|--------|
-| leader | Claude Code (a sessão em que você está) | Pergunta, cria branch, coordena |
+| leader | Claude, Codex ou Cursor (`sddharness start`) | Pergunta, cria branch, coordena |
+| coordinator | Mesmo executor do implementer | Traduz spec → tarefas dos implementers |
 | spec_author | Cursor Agent (modo plan) | Escreve requirements, design e tasks |
 | implementer | Codex | Implementa no worktree |
 | reviewer | Claude Code | Aprova ou pede mudanças — sem editar código |
 
-Para ver a configuração a qualquer momento:
-
-```
-/sddharness config list
-```
-
-ou `node sddharness/scripts/config.mjs list`.
-
 ## 5. Primeira sessão
 
-No seu projeto:
+No seu projeto (ou em qualquer repo do workspace):
 
 ```bash
-cd /caminho/do-seu-projeto
-herdr
+sddharness start
 ```
 
-No pane que abrir, suba o leader:
-
-```bash
-claude
-```
-
-O Claude precisa nascer **dentro** do Herdr. Fora dele o arnês não
-consegue abrir os outros agentes.
-
-No chat do Claude:
-
-```
-/sddharness init
-```
+Sobe o Herdr e o leader no CLI configurado. Se houver tarefa/feature
+pendente, retoma; senão começa uma **tarefa nova**. Não precisa de
+`/sddharness init` no chat (`/sddharness init` é só atalho opcional).
 
 Responda às perguntas. O fluxo típico é este:
 
@@ -205,8 +205,8 @@ No chat, `Sim`, `Aprovo` e `pode continuar` valem como o próximo passo.
 
 - [ ] As quatro CLIs respondem no terminal.
 - [ ] `config list` mostra `runtime: herdr`.
-- [ ] Você entrou com `herdr` e só então rodou `claude`.
-- [ ] `/sddharness init` pediu Jira ou a descrição da tarefa.
+- [ ] `sddharness start` abriu o leader no executor do config global.
+- [ ] Tarefa nova pediu Jira ou a descrição; pendente retomou o estado.
 
 ## 6. Comandos que você usa
 
@@ -214,7 +214,7 @@ Digite no chat do leader (funciona no Claude Code e no Cursor):
 
 | Comando | Quando usar |
 |---------|-------------|
-| `/sddharness init` | Começar do zero (recomendado) |
+| `/sddharness init` | Atalho opcional do mesmo fluxo que o `start` já abre |
 | `/sddharness filldocs` | Só preencher os docs de stack |
 | `/sddharness jira PROJ-123` | Já tem ticket no Jira |
 | `/sddharness task <descrição>` | Sem Jira: cola o texto da tarefa |
@@ -223,6 +223,7 @@ Digite no chat do leader (funciona no Claude Code e no Cursor):
 | `/sddharness config list` | Ver executors, modelos e ciclos de review |
 | `/sddharness config <papel> executor cursor` | Trocar quem executa um papel |
 | `/sddharness config <papel> model <slug>` | Trocar o modelo |
+| `/sddharness usage` | Barras de cota (sessão e ciclo) dos executores |
 | `/sddharness config orchestration maxReviewCycles 3` | Limite do loop implementa → revisa |
 
 Exemplos:
@@ -253,8 +254,8 @@ semanal/mensal).
 
 Se quiser que o arnês escolha sozinho o próximo CLI disponível:
 
-```bash
-node sddharness/scripts/config.mjs set orchestration fallbackOrder cursor,codex,claude
+```
+/sddharness config set orchestration fallbackOrder cursor,codex,claude
 ```
 
 Sem essa lista, ele **sempre pergunta**.
@@ -270,22 +271,16 @@ Você não precisa mexer nisso no dia a dia. Serve para achar as coisas.
 | `sddharness/progress/` | Relato da implementação e da review |
 | `sddharness/feature_list.json` | Lista e status das features |
 | `.worktrees/…` | Código da feature em andamento |
-| `.sddharness/config.json` | Runtime e executors |
+| `.sddharness/config.json` | Só `verifyCmd` do repo |
+| `~/.sddharness/config.json` | Runtime, executors, overlays de tarefa/feature |
 
 Regras que o leader segue:
 
-- Uma feature por vez.
+- Features do mesmo épico em ondas; merge serial por repo.
 - Código da feature só no worktree; spec e progresso na pasta `sddharness/`.
 - Nada de implementação antes da sua aprovação do spec.
 
 ## Próximo passo
 
-Instale as quatro ferramentas, clone este repo, rode `./install.sh`
-no seu projeto, configure o `runtime herdr` e abra:
-
-```bash
-cd /caminho/do-seu-projeto
-herdr
-```
-
-Depois, no pane: `claude` → `/sddharness init`.
+Instale as quatro ferramentas, `npm link`, crie o workspace e
+`sddharness start`. `/sddharness usage` mostra a cota.

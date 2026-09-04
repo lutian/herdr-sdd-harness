@@ -5,6 +5,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { ClaudeProvider } from "../template/sddharness/scripts/runtime/providers/claude.mjs";
 import { CodexProvider } from "../template/sddharness/scripts/runtime/providers/codex.mjs";
 import { CursorProvider } from "../template/sddharness/scripts/runtime/providers/cursor.mjs";
+import { OpenCodeProvider } from "../template/sddharness/scripts/runtime/providers/opencode.mjs";
 
 const FALLBACK = join(
   dirname(fileURLToPath(import.meta.url)),
@@ -21,6 +22,7 @@ function providers() {
     claude: new ClaudeProvider({ which: () => true }),
     codex: new CodexProvider({ which: () => true }),
     cursor: new CursorProvider({ which: () => true }),
+    opencode: new OpenCodeProvider({ which: () => true }),
   };
 }
 
@@ -35,6 +37,7 @@ describe("resolveExecutor", () => {
         SDDHARNESS_CLAUDE_SESSION_PCT: "92",
         SDDHARNESS_CURSOR_SESSION_PCT: "10",
         SDDHARNESS_CODEX_SESSION_PCT: "10",
+        SDDHARNESS_OPENCODE_SESSION_PCT: "10",
       },
     });
     assert.equal(result.error, "ask");
@@ -54,6 +57,7 @@ describe("resolveExecutor", () => {
         SDDHARNESS_CODEX_SESSION_PCT: "91",
         SDDHARNESS_CURSOR_SESSION_PCT: "5",
         SDDHARNESS_CLAUDE_SESSION_PCT: "5",
+        SDDHARNESS_OPENCODE_SESSION_PCT: "5",
       },
     });
     assert.equal(result.executor, "cursor");
@@ -69,6 +73,7 @@ describe("resolveExecutor", () => {
         claude: new ClaudeProvider({ which: () => false }),
         codex: new CodexProvider({ which: () => false }),
         cursor: new CursorProvider({ which: () => false }),
+        opencode: new OpenCodeProvider({ which: () => false }),
       },
       quota: { sessionPct: 90, weeklyPct: 95 },
       fallbackOrder: ["cursor", "codex", "claude"],

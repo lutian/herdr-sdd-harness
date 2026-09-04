@@ -19,10 +19,10 @@ const KIT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const AGENT = join(KIT, "template", "sddharness", "scripts", "herdr-agent.mjs");
 const FAKE = join(KIT, "tests", "fixtures", "fake-herdr.mjs");
 
-function writeCfg(dir, extra = {}) {
-  mkdirSync(join(dir, ".sddharness"), { recursive: true });
+function writeCfg(home, extra = {}) {
+  mkdirSync(home, { recursive: true });
   writeFileSync(
-    join(dir, ".sddharness", "config.json"),
+    join(home, "config.json"),
     JSON.stringify(
       {
         runtime: "herdr",
@@ -52,13 +52,20 @@ function writeCfg(dir, extra = {}) {
 
 function setup() {
   const dir = mkdtempSync(join(tmpdir(), "sdd-herdr-"));
+  const home = join(dir, "sdd-home");
   const bin = join(dir, "bin");
   mkdirSync(bin);
   const herdrBin = join(bin, "herdr");
   cpSync(FAKE, herdrBin);
   chmodSync(herdrBin, 0o755);
-  writeCfg(dir);
-  return { dir, bin, state: join(dir, "fake-state.json"), log: join(dir, "fake-log.txt") };
+  writeCfg(home);
+  return {
+    dir,
+    home,
+    bin,
+    state: join(dir, "fake-state.json"),
+    log: join(dir, "fake-log.txt"),
+  };
 }
 
 function run(ctx, args, extraEnv = {}) {
@@ -71,10 +78,12 @@ function run(ctx, args, extraEnv = {}) {
       HERDR_ENV: "1",
       HERDR_FAKE_STATE: ctx.state,
       HERDR_FAKE_LOG: ctx.log,
-      SDDHARNESS_FAKE_CLIS: "claude,codex,cursor,agent",
+      SDDHARNESS_HOME: ctx.home,
+      SDDHARNESS_FAKE_CLIS: "claude,codex,cursor,agent,opencode",
       SDDHARNESS_CLAUDE_SESSION_PCT: "10",
       SDDHARNESS_CODEX_SESSION_PCT: "10",
       SDDHARNESS_CURSOR_SESSION_PCT: "10",
+      SDDHARNESS_OPENCODE_SESSION_PCT: "10",
       ...extraEnv,
     },
   });
@@ -99,7 +108,7 @@ describe("herdr-agent.mjs", () => {
       }
     );
     assert.notEqual(noEnv.status, 0);
-    writeCfg(ctx.dir, { runtime: "native" });
+    writeCfg(ctx.home, { runtime: "native" });
     const native = run(ctx, ["spawn", "--role", "implementer", "--cwd", ctx.dir]);
     assert.notEqual(native.status, 0);
     assert.match(native.stderr, /runtime não é herdr/);
@@ -177,6 +186,7 @@ describe("herdr-agent.mjs", () => {
       SDDHARNESS_CLAUDE_SESSION_PCT: undefined,
       SDDHARNESS_CODEX_SESSION_PCT: undefined,
       SDDHARNESS_CURSOR_SESSION_PCT: undefined,
+      SDDHARNESS_OPENCODE_SESSION_PCT: undefined,
     });
     assert.equal(r.status, 3, r.stderr + r.stdout);
     assert.match(r.stderr, /nenhum executor disponível/);

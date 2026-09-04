@@ -1,10 +1,6 @@
 #!/usr/bin/env node
 /**
- * sddharness CLI — init | validate
- *
- * Usage:
- *   sddharness init <destino>
- *   sddharness validate [destino]
+ * sddharness CLI — global workspace + init/validate
  */
 
 import {
@@ -19,6 +15,21 @@ import {
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
+import { harnessHome } from "../lib/home.mjs";
+import {
+  addRepo,
+  createWorkspace,
+  listWorkspaces,
+  readWorkspace,
+  removeRepo,
+  requireCurrent,
+  useWorkspace,
+} from "../lib/workspace.mjs";
+import { planStart } from "../lib/boot.mjs";
+import { formatUsage } from "../lib/quota.mjs";
+import { checkWave, classifyBand, DEFAULT_QUOTA } from "../lib/quota.mjs";
+import { EXECUTORS } from "../template/sddharness/scripts/runtime/provider.mjs";
+import { readConfig } from "../template/sddharness/scripts/config.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const KIT_ROOT = resolve(__dirname, "..");
@@ -26,8 +37,13 @@ const TEMPLATE = join(KIT_ROOT, "template");
 
 function usage() {
   console.log(`Usage:
-  sddharness init <destino>
+  sddharness start [--print]
+  sddharness workspace create|list|use [nome]
+  sddharness repo add|list|remove <path|id>
+  sddharness init <destino>          # instala artefatos no repo (+ repo add se houver workspace)
   sddharness validate [destino]
+  sddharness usage | quota
+  sddharness config …
 
   install.sh <destino>  →  alias de init
 `);
@@ -45,10 +61,15 @@ function ensureDir(p) {
   mkdirSync(p, { recursive: true });
 }
 
-/**
- * Copy template → dest without overwriting existing files.
- * Directories are merged; files that already exist are skipped.
- */
+function homeEnv() {
+  return harnessHome(process.env);
+}
+
+function fail(msg, code = 1) {
+  console.error(`[FAIL]  ${msg}`);
+  process.exit(code);
+}
+
 function copyConservative(src, dest, skipped, created) {
   if (!existsSync(src)) return;
   const st = statSync(src);
@@ -56,7 +77,6 @@ function copyConservative(src, dest, skipped, created) {
     ensureDir(dest);
     for (const name of readdirSync(src)) {
       if (name === "node_modules" || name === ".git") continue;
-      // Canonical agent bodies stay in the kit; targets get .claude/.cursor wrappers only.
       if (src === TEMPLATE && name === "agents") continue;
       copyConservative(join(src, name), join(dest, name), skipped, created);
     }
@@ -80,7 +100,9 @@ function inferProjectName(dest) {
       /* ignore */
     }
   }
-  const csproj = readdirSync(dest).find((f) => f.endsWith(".csproj"));
+  const csproj = isDir(dest)
+    ? readdirSync(dest).find((f) => f.endsWith(".csproj"))
+    : null;
   if (csproj) return csproj.replace(/\.csproj$/, "");
   return dest.split(/[/\\]/).filter(Boolean).pop() || "seu-projeto";
 }
@@ -109,22 +131,12 @@ function chmodInit(dest) {
   }
 }
 
-function cmdInit(destArg) {
-  if (!destArg) {
-    usage();
-    process.exit(1);
-  }
-  const dest = resolve(destArg);
-  if (!existsSync(TEMPLATE)) {
-    console.error(`[FAIL] template não encontrado em ${TEMPLATE}`);
-    process.exit(1);
-  }
+function installRepoArtifacts(dest) {
+  if (!existsSync(TEMPLATE)) fail(`template não encontrado em ${TEMPLATE}`);
   ensureDir(dest);
-
   const skipped = [];
   const created = [];
   copyConservative(TEMPLATE, dest, skipped, created);
-
   for (const d of [
     "sddharness/docs",
     "sddharness/progress",
@@ -134,22 +146,35 @@ function cmdInit(destArg) {
   ]) {
     ensureDir(join(dest, d));
   }
-
   patchFeatureListProject(dest);
   chmodInit(dest);
+  return { skipped, created };
+}
 
+function registerIfWorkspace(dest) {
+  try {
+    const ws = requireCurrent(homeEnv());
+    addRepo(ws, dest, { id: inferProjectName(dest) }, homeEnv());
+    console.log(`[OK]    repo ligado ao workspace ${ws.name}`);
+  } catch {
+    /* sem workspace ativo */
+  }
+}
+
+function cmdInit(destArg) {
+  if (!destArg) {
+    usage();
+    process.exit(1);
+  }
+  const dest = resolve(destArg);
+  const { skipped, created } = installRepoArtifacts(dest);
+  registerIfWorkspace(dest);
   console.log(`[OK]    sddharness instalado em ${dest}`);
   console.log(`[OK]    arquivos criados: ${created.length}`);
   if (skipped.length) {
     console.log(`[WARN]  arquivos preservados (já existiam): ${skipped.length}`);
   }
-
-  const validateScript = join(
-    dest,
-    "sddharness",
-    "scripts",
-    "validate-features.mjs"
-  );
+  const validateScript = join(dest, "sddharness", "scripts", "validate-features.mjs");
   if (existsSync(validateScript)) {
     const r = spawnSync(process.execPath, [validateScript], {
       cwd: dest,
@@ -162,22 +187,18 @@ function cmdInit(destArg) {
       process.exit(r.status ?? 1);
     }
   }
-
   console.log(`
 Próximos passos:
-  1. /sddharness filldocs  (ou preencha sddharness/docs/*)
-  2. Autentique o MCP Atlassian (Jira) no Cursor
-  3. /sddharness init   — fluxo amigável
+  1. sddharness workspace create <nome>   (se ainda não tiver)
+  2. sddharness start
+     (abre o leader e começa ou retoma a tarefa — sem /sddharness init)
 `);
 }
 
 function cmdValidate(destArg) {
   const dest = resolve(destArg || process.cwd());
   const script = join(dest, "sddharness", "scripts", "validate-features.mjs");
-  if (!existsSync(script)) {
-    console.error(`[FAIL]  não achei ${script}`);
-    process.exit(1);
-  }
+  if (!existsSync(script)) fail(`não achei ${script}`);
   const r = spawnSync(process.execPath, [script], {
     cwd: dest,
     encoding: "utf8",
@@ -186,20 +207,211 @@ function cmdValidate(destArg) {
   process.exit(r.status ?? 1);
 }
 
-const [cmd, arg] = process.argv.slice(2);
+function cmdWorkspace(argv) {
+  const [sub, name] = argv;
+  const home = homeEnv();
+  if (sub === "list") {
+    const cur = (() => {
+      try {
+        return requireCurrent(home).name;
+      } catch {
+        return null;
+      }
+    })();
+    const names = listWorkspaces(home);
+    if (!names.length) {
+      console.log("(nenhum workspace)");
+      return;
+    }
+    for (const n of names) console.log(`${n === cur ? "*" : " "} ${n}`);
+    return;
+  }
+  if (sub === "create") {
+    if (!name) fail("usage: workspace create <nome>");
+    const { created } = createWorkspace(name, home);
+    console.log(created ? `[OK]    workspace ${name}` : `[OK]    workspace ${name} já existia`);
+    return;
+  }
+  if (sub === "use") {
+    if (!name) fail("usage: workspace use <nome>");
+    useWorkspace(name, home);
+    console.log(`[OK]    workspace ativo: ${name}`);
+    return;
+  }
+  fail("usage: workspace create|list|use");
+}
+
+function cmdRepo(argv) {
+  const [sub, target] = argv;
+  const home = homeEnv();
+  const ws = requireCurrent(home);
+  if (sub === "list") {
+    for (const r of ws.repos || []) console.log(`${r.id}\t${r.path}`);
+    return;
+  }
+  if (sub === "add") {
+    if (!target) fail("usage: repo add <path>");
+    const dest = resolve(target);
+    installRepoArtifacts(dest);
+    const { repo } = addRepo(ws, dest, { id: inferProjectName(dest) }, home);
+    console.log(`[OK]    repo ${repo.id} → ${repo.path}`);
+    return;
+  }
+  if (sub === "remove") {
+    if (!target) fail("usage: repo remove <id|path>");
+    removeRepo(ws, target, home);
+    console.log(`[OK]    repo removido: ${target}`);
+    return;
+  }
+  fail("usage: repo add|list|remove");
+}
+
+function resolvedConfig(extra = {}) {
+  return readConfig({
+    home: homeEnv(),
+    cwd: process.cwd(),
+    ...extra,
+  });
+}
+
+function cmdStart(argv) {
+  const printOnly = argv.includes("--print");
+  const cfg = resolvedConfig();
+  let plan;
+  try {
+    plan = planStart(cfg, {
+      home: homeEnv(),
+      lock: !printOnly,
+      cwd: process.cwd(),
+    });
+  } catch (err) {
+    fail(err.message);
+  }
+  const line = ["herdr", ...plan.leaderArgs].join(" ");
+  const sessionWord = plan.session === "resume" ? "pendente" : "nova";
+  console.log(`[OK]    workspace ${plan.workspace}`);
+  console.log(`[OK]    cwd ${plan.cwd}`);
+  console.log(`[OK]    sessão ${sessionWord}`);
+  console.log(line);
+  console.log(plan.prompt);
+  if (printOnly) return;
+  const r = spawnSync("herdr", plan.leaderArgs, {
+    cwd: plan.cwd,
+    stdio: "inherit",
+    env: {
+      ...process.env,
+      HERDR_ENV: "1",
+      SDDHARNESS_SESSION: plan.session,
+      SDDHARNESS_BOOT_PROMPT: plan.bootPromptPath,
+    },
+  });
+  process.exit(r.status ?? 1);
+}
+
+function probeFromEnv(executor, env) {
+  const prefix = executor.toUpperCase();
+  const sessionPct = env[`SDDHARNESS_${prefix}_SESSION_PCT`];
+  const weeklyPct = env[`SDDHARNESS_${prefix}_WEEKLY_PCT`];
+  const out = {};
+  if (sessionPct != null && sessionPct !== "") out.sessionPct = Number(sessionPct);
+  if (weeklyPct != null && weeklyPct !== "") out.weeklyPct = Number(weeklyPct);
+  return out;
+}
+
+async function liveProbes(cfg) {
+  const { createProviders } = await import(
+    "../template/sddharness/scripts/herdr-agent.mjs"
+  );
+  const providers = createProviders();
+  const quota = { ...DEFAULT_QUOTA, ...(cfg.quota || {}) };
+  const probes = {};
+  for (const name of EXECUTORS) {
+    probes[name] = await providers[name].probe({ quota, env: process.env });
+    const envP = probeFromEnv(name, process.env);
+    if (envP.sessionPct != null) probes[name] = { ...probes[name], ...envP };
+  }
+  return probes;
+}
+
+async function cmdUsage() {
+  const cfg = resolvedConfig();
+  const probes = await liveProbes(cfg);
+  const roleExecutors = {};
+  for (const [role, agent] of Object.entries(cfg.agents || {})) {
+    roleExecutors[role] = agent.executor || "claude";
+  }
+  const { rows } = checkWave(probes, roleExecutors, cfg.quota);
+  for (const row of rows) {
+    if (!row.band || row.band === "ok") {
+      row.band = classifyBand(probes[row.executor], cfg.quota);
+    }
+  }
+  const missing = EXECUTORS.filter(
+    (e) => !rows.some((r) => r.executor === e)
+  );
+  for (const executor of missing) {
+    rows.push({
+      executor,
+      band: classifyBand(probes[executor], cfg.quota),
+      roles: [],
+      sessionPct: probes[executor]?.sessionPct,
+      weeklyPct: probes[executor]?.weeklyPct,
+    });
+  }
+  const snap = join(homeEnv(), "quota.json");
+  ensureDir(homeEnv());
+  writeFileSync(
+    snap,
+    JSON.stringify({ at: new Date().toISOString(), probes, rows }, null, 2) + "\n"
+  );
+  process.stdout.write(formatUsage(rows));
+}
+
+function cmdConfig(argv) {
+  const script = join(TEMPLATE, "sddharness", "scripts", "config.mjs");
+  const r = spawnSync(process.execPath, [script, ...argv], {
+    cwd: process.cwd(),
+    stdio: "inherit",
+    env: { ...process.env, SDDHARNESS_HOME: homeEnv() },
+  });
+  process.exit(r.status ?? 1);
+}
+
+const argv = process.argv.slice(2);
+const [cmd, ...rest] = argv;
+
 switch (cmd) {
   case "init":
-    cmdInit(arg);
+    cmdInit(rest[0]);
     break;
   case "validate":
-    cmdValidate(arg);
+    cmdValidate(rest[0]);
+    break;
+  case "workspace":
+    cmdWorkspace(rest);
+    break;
+  case "repo":
+    cmdRepo(rest);
+    break;
+  case "start":
+    cmdStart(rest);
+    break;
+  case "usage":
+  case "quota":
+    cmdUsage().catch((err) => fail(err.message));
+    break;
+  case "config":
+    cmdConfig(rest);
     break;
   case "-h":
   case "--help":
   case "help":
+    usage();
+    process.exit(0);
+    break;
   case undefined:
     usage();
-    process.exit(cmd ? 0 : 1);
+    process.exit(1);
     break;
   default:
     console.error(`[FAIL]  comando desconhecido: ${cmd}`);

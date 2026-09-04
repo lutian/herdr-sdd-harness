@@ -9,8 +9,9 @@ tools: Read, Glob, Grep, Bash, Agent
 Você é o agente leader deste repositório. Seu único trabalho é
 **decompor e coordenar**, nunca implementar.
 
-Leia `.sddharness/config.json` antes de lançar workers. Se
-`runtime` for `herdr`, lance **somente** via:
+Rode `sddharness config list` antes de lançar workers. Se existir
+`boot-prompt.md` (`SDDHARNESS_BOOT_PROMPT`), execute-o — não espere `/sddharness init`.
+Se `runtime` for `herdr`, lance **somente** via:
 
 ```bash
 node sddharness/scripts/herdr-agent.mjs run --role <role> --cwd <abs> --feature <name> --prompt "..."
@@ -21,12 +22,14 @@ Respeite os exits: `2` = blocked (mostre a tela, espere o humano);
 executor usar. Anuncie qualquer `executor definido: …`. Sem
 `orchestration.fallbackOrder`, **não** escolha sozinho.
 
-Se `runtime` for `native` (default), lance subagentes da plataforma.
+Se o boot foi `sddharness start`, lance **somente** via `herdr-agent.mjs`
+(mesmo com leader Codex/Cursor). Sem tool `Agent` para implementer.
+
+Se `runtime` for `native` (só Claude fora do Herdr), lance subagentes da plataforma.
 Se um agente tiver `model` diferente de `inherit`, passe esse modelo
 quando a plataforma permitir; senão inclua `Modelo preferido: <slug>`.
 
-`node sddharness/scripts/config.mjs list` mostra executors, models e
-`maxReviewCycles`.
+`sddharness config list` mostra executors, models e `maxReviewCycles`.
 
 ## Gate de docs (proibitivo)
 
@@ -72,7 +75,7 @@ Código da feature é editado no **worktree** (`worktreePath`).
 ## Fluxo SDD
 
 ```
-pending → [spec_author] → spec_ready → ⏸ HUMANO → in_progress → [implementer → reviewer] → done
+pending → [spec_author onda] → spec_ready → ⏸ HUMANO → in_progress → [coordinator → implementers → reviewer] → merge serial
 ```
 
 ## Comandos `/sddharness`
@@ -118,9 +121,11 @@ Lance `docs_filler`.
 
 1. Exija `spec_ready`.
 2. `in_progress`. Leia `orchestration.maxReviewCycles` (default 3).
-3. Loop até o teto:
-   - lance `implementer` (cwd = worktree absoluto; `HARNESS_ROOT` = raiz)
-   - lance `reviewer` (mesmo worktree; não edita código)
+3. `quota.mjs check`. warn/block → cole `usage` e pergunte (não auto-troque).
+4. Loop até o teto:
+   - lance `coordinator` (mesmo executor do implementer)
+   - o coordinator lança `implementer`s (cwd = worktree; `--root` do repo)
+   - lance `reviewer` direto (mesmo worktree; não edita código)
    - APPROVED → implementer marca `done` → saia do loop
    - CHANGES_REQUESTED → próximo ciclo no mesmo worktree
 4. Sem APPROVED após N ciclos → `blocked` em `feature_list.json`,

@@ -10,13 +10,21 @@
  *   node sddharness/scripts/git-session.mjs record-agent --feature feature-01 --role implementer --executor codex --pane w1:p2
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { featureNn, slugify } from "./git-slug.mjs";
 
-const ROOT = process.cwd();
-const SESSION_PATH = join(ROOT, ".sddharness", "session.json");
+let ROOT = process.cwd();
+
+function sessionRoot(args = {}) {
+  const raw = args.root || process.env.SDDHARNESS_REPO_ROOT || process.cwd();
+  return resolve(raw);
+}
+
+function sessionPath(root = ROOT) {
+  return join(root, ".sddharness", "session.json");
+}
 
 function fail(msg) {
   console.error(`[FAIL]  ${msg}`);
@@ -62,8 +70,9 @@ function parseArgs(argv) {
   return out;
 }
 
-function readSession() {
-  if (!existsSync(SESSION_PATH)) {
+function readSession(root) {
+  const path = sessionPath(root);
+  if (!existsSync(path)) {
     return {
       jiraKey: null,
       baseBranch: null,
@@ -72,12 +81,24 @@ function readSession() {
       features: {},
     };
   }
-  return JSON.parse(readFileSync(SESSION_PATH, "utf8"));
+  return JSON.parse(readFileSync(path, "utf8"));
 }
 
-function writeSession(session) {
+function writeSession(session, root = ROOT) {
+  mkdirSync(join(root, ".sddharness"), { recursive: true });
+  writeFileSync(sessionPath(root), JSON.stringify(session, null, 2) + "\n");
+}
+
+function withMergeLock(fn) {
+  const lock = join(ROOT, ".sddharness", "merge.lock");
   mkdirSync(join(ROOT, ".sddharness"), { recursive: true });
-  writeFileSync(SESSION_PATH, JSON.stringify(session, null, 2) + "\n");
+  if (existsSync(lock)) fail(`merge em andamento neste repo (${lock})`);
+  writeFileSync(lock, String(process.pid));
+  try {
+    return fn();
+  } finally {
+    if (existsSync(lock)) rmSync(lock);
+  }
 }
 
 function branchExists(name) {
@@ -120,13 +141,13 @@ function cmdEnsureParent(args) {
     ok(`branch mãe criada: ${parentBranch}`);
   }
 
-  const session = readSession();
+  const session = readSession(ROOT);
   session.jiraKey = jira;
   session.baseBranch = base;
   session.parentBranch = parentBranch;
   session.parentTitle = title;
   session.features = session.features || {};
-  writeSession(session);
+  writeSession(session, ROOT);
 
   console.log(parentBranch);
 }
@@ -141,7 +162,7 @@ function cmdAddWorktree(args) {
     );
   }
 
-  const session = readSession();
+  const session = readSession(ROOT);
   const parentBranch = session.parentBranch;
   if (!parentBranch) fail("rode ensure-parent antes de add-worktree");
 
@@ -171,7 +192,7 @@ function cmdAddWorktree(args) {
     title,
     merged: false,
   };
-  writeSession(session);
+  writeSession(session, ROOT);
 
   console.log(
     JSON.stringify({ worktreeBranch, worktreePath, parentBranch }, null, 2)
@@ -180,9 +201,13 @@ function cmdAddWorktree(args) {
 
 function cmdMergeWorktree(args) {
   const feature = args.feature;
-  if (!feature) fail("usage: merge-worktree --feature feature-01");
+  if (!feature) fail("usage: merge-worktree --feature feature-01 [--root <abs>]");
 
-  const session = readSession();
+  withMergeLock(() => mergeWorktreeUnlocked(feature));
+}
+
+function mergeWorktreeUnlocked(feature) {
+  const session = readSession(ROOT);
   const parentBranch = session.parentBranch;
   const feat = session.features?.[feature];
   if (!parentBranch) fail("session sem parentBranch");
@@ -217,16 +242,17 @@ function cmdMergeWorktree(args) {
   }
 
   feat.merged = true;
-  writeSession(session);
+  writeSession(session, ROOT);
   console.log(JSON.stringify({ parentBranch, worktreeBranch, merged: true }, null, 2));
 }
 
 function cmdShowSession() {
-  if (!existsSync(SESSION_PATH)) {
+  const path = sessionPath(ROOT);
+  if (!existsSync(path)) {
     console.log("{}");
     return;
   }
-  console.log(readFileSync(SESSION_PATH, "utf8").trimEnd());
+  console.log(readFileSync(path, "utf8").trimEnd());
 }
 
 function cmdRecordAgent(args) {
@@ -240,7 +266,7 @@ function cmdRecordAgent(args) {
     );
   }
 
-  const session = readSession();
+  const session = readSession(ROOT);
   const feat = session.features?.[feature];
   if (!feat) fail(`feature ${feature} não está na session`);
 
@@ -265,13 +291,13 @@ function cmdRecordAgent(args) {
       agents: { ...(feat.agents || {}), [role]: agent },
     },
   };
-  writeSession(session);
+  writeSession(session, ROOT);
   console.log(JSON.stringify(agent, null, 2));
 }
 
 function usage() {
   console.log(`Usage:
-  git-session.mjs current-branch
+  git-session.mjs current-branch [--root <abs>]
   git-session.mjs ensure-parent --jira KEY|--key KEY --title "..."
   git-session.mjs add-worktree --jira KEY|--key KEY --feature feature-01 --title "..."
   git-session.mjs merge-worktree --feature feature-01
@@ -280,6 +306,7 @@ function usage() {
 }
 
 const argv = parseArgs(process.argv.slice(2));
+ROOT = sessionRoot(argv);
 const cmd = argv._[0];
 
 switch (cmd) {

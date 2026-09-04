@@ -113,6 +113,14 @@ function updateCurrent({ id, name, title }) {
   writeFileSync(CURRENT_PATH, `${current.trimEnd()}\n\n- ${line}\n`);
 }
 
+let IMPORT_ARGS = {};
+
+function argsRepo() {
+  const repo = IMPORT_ARGS.repo;
+  if (!repo || repo === true) return undefined;
+  return String(repo);
+}
+
 function cmdImport(description) {
   const text = String(description ?? "").trim();
   if (!text) fail('usage: import --description "..."');
@@ -146,6 +154,7 @@ function cmdImport(description) {
         title,
         description: text,
         acceptance: [],
+        repo: argsRepo(),
         sdd: true,
         status: "pending",
       },
@@ -184,6 +193,7 @@ function main(argv) {
       cmdNextId();
       break;
     case "import":
+      IMPORT_ARGS = args;
       cmdImport(args.description);
       break;
     default:

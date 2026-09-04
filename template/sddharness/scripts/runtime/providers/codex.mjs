@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { AgentProvider, usedPercent } from "../provider.mjs";
 
 export class CodexProvider extends AgentProvider {
@@ -7,6 +8,22 @@ export class CodexProvider extends AgentProvider {
 
   modelFlag(model) {
     return ["-m", model];
+  }
+
+  async readLiveQuota() {
+    const bin = this.cliNames.find((name) => this.which(name));
+    if (!bin) return {};
+    for (const args of [["status", "--json"], ["app-server", "rate-limits"]]) {
+      const r = spawnSync(bin, args, { encoding: "utf8", timeout: 8000 });
+      if (r.status !== 0) continue;
+      try {
+        const parsed = this.parseRateLimits(JSON.parse(r.stdout));
+        if (parsed.sessionPct != null || parsed.weeklyPct != null) return parsed;
+      } catch {
+        /* next */
+      }
+    }
+    return {};
   }
 
   parseRateLimits(payload) {

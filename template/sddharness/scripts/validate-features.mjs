@@ -33,9 +33,21 @@ try {
 
 const features = data.features ?? [];
 const inProgress = features.filter((f) => f.status === "in_progress");
+const epicOf = (f) => f.jira_key || data.source?.key || null;
 if (inProgress.length > 1) {
-  fail(`Há ${inProgress.length} features em in_progress (máximo 1)`);
-  process.exit(1);
+  const keys = [...new Set(inProgress.map(epicOf))];
+  if (keys.length > 1 || keys[0] == null) {
+    fail(
+      `Há ${inProgress.length} features em in_progress de épicos diferentes (só o mesmo source.key)`
+    );
+    process.exit(1);
+  }
+  let maxParallel = Number(data.rules?.max_parallel || process.env.SDDHARNESS_MAX_PARALLEL || 3);
+  if (!Number.isInteger(maxParallel) || maxParallel < 1) maxParallel = 3;
+  if (inProgress.length > maxParallel) {
+    fail(`Há ${inProgress.length} features em in_progress (máximo ${maxParallel})`);
+    process.exit(1);
+  }
 }
 
 let specErrors = [];

@@ -8,8 +8,8 @@ Neste repositório você atua **sempre** como o subagente `leader` definido em
 `.claude/agents/leader.md`. Seu trabalho é **decompor e coordenar**, nunca
 implementar.
 
-Prefira `/sddharness` — em especial `/sddharness init` para o fluxo amigável
-(`filldocs` → Jira ou `task` → `write-spec` → `approve`).
+`sddharness start` já conduz tarefa nova ou pendente. `/sddharness init`
+é atalho opcional (`filldocs` → Jira ou `task` → `write-spec` → `approve`).
 
 ### Regras rígidas
 
@@ -20,20 +20,23 @@ Prefira `/sddharness` — em especial `/sddharness init` para o fluxo amigável
 - ❌ **Não pule o portão humano** entre `spec_ready` e `in_progress`.
 - ❌ **Não avance** jira/task/write-spec/approve se `docs-ready.mjs` falhar.
 - ❌ Não use o subcomando legado `execute` — o nome é `write-spec`.
-- ✅ Se `.sddharness/config.json` → `runtime` for `herdr`, lance workers
+- ✅ Se `sddharness config list` mostrar `runtime: herdr`, lance workers
   via `node sddharness/scripts/herdr-agent.mjs run …` (não use a tool
   `Agent`). Exits 2/3/4 = blocked / nenhum executor / perguntar.
-- ✅ Se `runtime` for `native`, lance subagentes via `Agent`:
-  - `docs_filler`, `jira_importer`, `spec_author`, `implementer`, `reviewer`
-- ✅ Respeite `.sddharness/config.json` (executor, model, mode, capabilities).
-- ✅ `/sddharness config list` ou `node sddharness/scripts/config.mjs list`.
+- ✅ Se o boot foi `sddharness start` (Herdr), lance workers via
+  `herdr-agent.mjs` — inclusive com leader Codex/Cursor. Sem tool `Agent`
+  para implementer; use `coordinator`.
+- ✅ Se `runtime` for `native` e você é Claude fora do Herdr, lance via `Agent`:
+  - `docs_filler`, `jira_importer`, `spec_author`, `coordinator`, `implementer`, `reviewer`
+- ✅ Respeite `sddharness config list` (executor, model, mode, capabilities).
+- ✅ Config só via `/sddharness config …` (home/workspace + `--task` / `--feature`).
 - ✅ Confirmações `Sim` / `Aprovo` no chat disparam o próximo passo do protocolo.
 
 ### Protocolo de início
 
 1. Leia `sddharness/AGENTS.md`, `sddharness/feature_list.json`, `sddharness/progress/current.md`.
 2. Execute `./sddharness/init.sh`.
-3. Siga `.claude/agents/leader.md` (inclui `/sddharness init`).
+3. Se existir `boot-prompt.md` no workspace (`SDDHARNESS_BOOT_PROMPT`), siga-o.
 
 ### Regra anti-telefone-sem-fio
 

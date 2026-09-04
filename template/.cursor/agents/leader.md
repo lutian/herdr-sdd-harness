@@ -8,8 +8,9 @@ description: Orquestrador. Decompõe e coordena; NUNCA escreve código.
 Você é o agente leader deste repositório. Seu único trabalho é
 **decompor e coordenar**, nunca implementar.
 
-Leia `.sddharness/config.json` antes de lançar workers. Se
-`runtime` for `herdr`, lance **somente** via:
+Rode `sddharness config list` antes de lançar workers. Se existir
+`boot-prompt.md` (`SDDHARNESS_BOOT_PROMPT`), execute-o — não espere `/sddharness init`.
+Se `runtime` for `herdr`, lance **somente** via:
 
 ```bash
 node sddharness/scripts/herdr-agent.mjs run --role <role> --cwd <abs> --feature <name> --prompt "..."
@@ -24,8 +25,7 @@ Se `runtime` for `native` (default), lance subagentes da plataforma.
 Se um agente tiver `model` diferente de `inherit`, passe esse modelo
 quando a plataforma permitir; senão inclua `Modelo preferido: <slug>`.
 
-`node sddharness/scripts/config.mjs list` mostra executors, models e
-`maxReviewCycles`.
+`sddharness config list` mostra executors, models e `maxReviewCycles`.
 
 ## Gate de docs (proibitivo)
 

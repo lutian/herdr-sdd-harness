@@ -79,18 +79,17 @@ describe("sddharness CLI init (install skeleton)", () => {
     assert.match(cmd, /\/sddharness init/);
     assert.match(cmd, /write-spec/);
     assert.match(cmd, /\/sddharness task/);
+    assert.match(cmd, /\/sddharness usage/);
     assert.doesNotMatch(cmd, /\/sddharness execute/);
   });
 
-  it("config includes docs_filler, runtime and capabilities", () => {
+  it("repo config is local-only (verifyCmd), not executors", () => {
     const cfg = JSON.parse(
       readFileSync(join(dest, ".sddharness", "config.json"), "utf8")
     );
-    assert.ok(cfg.agents.docs_filler);
-    assert.equal(cfg.runtime, "native");
-    assert.equal(cfg.agents.docs_filler.executor, "claude");
-    assert.equal(cfg.orchestration.maxReviewCycles, 3);
-    assert.ok(cfg.agents.implementer.capabilities.writeCode);
+    assert.ok(!cfg.agents);
+    assert.ok(!cfg.runtime);
+    assert.ok("verifyCmd" in cfg);
   });
 
   it("copies herdr runtime scripts and documents config list", () => {
@@ -104,6 +103,9 @@ describe("sddharness CLI init (install skeleton)", () => {
     );
     assert.ok(
       existsSync(join(dest, H, "scripts", "runtime", "providers", "cursor.mjs"))
+    );
+    assert.ok(
+      existsSync(join(dest, H, "scripts", "runtime", "providers", "opencode.mjs"))
     );
     const cmd = readFileSync(
       join(dest, ".cursor", "commands", "sddharness.md"),
@@ -194,6 +196,46 @@ describe("validate-features name rule", () => {
       );
       assert.notEqual(r.status, 0);
       assert.match(r.stdout + r.stderr, /feature-01/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("allows two in_progress of the same epic", () => {
+    const dir = mkdtempSync(join(tmpdir(), "harness-par-"));
+    try {
+      mkdirSync(join(dir, H, "scripts"), { recursive: true });
+      mkdirSync(join(dir, H, "specs"), { recursive: true });
+      writeFileSync(
+        join(dir, H, "scripts", "validate-features.mjs"),
+        readFileSync(join(KIT, "template", H, "scripts", "validate-features.mjs"), "utf8")
+      );
+      const feat = (id, name) => ({
+        id,
+        name,
+        title: "x",
+        description: "y",
+        acceptance: [],
+        sdd: false,
+        status: "in_progress",
+        jira_key: "PROJ-1",
+        repo: id === 1 ? "api" : "web",
+      });
+      writeFileSync(
+        join(dir, H, "feature_list.json"),
+        JSON.stringify({
+          project: "t",
+          source: { type: "jira", key: "PROJ-1" },
+          rules: { valid_status: ["in_progress"], max_parallel: 3 },
+          features: [feat(1, "feature-01"), feat(2, "feature-02")],
+        })
+      );
+      const r = spawnSync(
+        process.execPath,
+        [join(dir, H, "scripts", "validate-features.mjs")],
+        { cwd: dir, encoding: "utf8" }
+      );
+      assert.equal(r.status, 0, r.stdout + r.stderr);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

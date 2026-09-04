@@ -11,6 +11,7 @@ import { readConfig } from "./config.mjs";
 import { ClaudeProvider } from "./runtime/providers/claude.mjs";
 import { CodexProvider } from "./runtime/providers/codex.mjs";
 import { CursorProvider } from "./runtime/providers/cursor.mjs";
+import { OpenCodeProvider } from "./runtime/providers/opencode.mjs";
 import { resolveExecutor, quotaReason } from "./runtime/fallback.mjs";
 
 const ROOT = process.cwd();
@@ -43,6 +44,7 @@ export function createProviders() {
     claude: new ClaudeProvider(),
     codex: new CodexProvider(),
     cursor: new CursorProvider(),
+    opencode: new OpenCodeProvider(),
   };
 }
 
@@ -67,10 +69,10 @@ function parseJson(stdout) {
 
 function requireHerdrRuntime(cfg) {
   if ((cfg.runtime || "native") !== "herdr") {
-    fail("runtime não é herdr — use config.mjs set runtime herdr");
+    fail("runtime não é herdr — use sddharness config set runtime herdr");
   }
   if (process.env.HERDR_ENV !== "1") {
-    fail("rode o leader dentro do Herdr (herdr → claude). HERDR_ENV=1 ausente");
+    fail("rode o leader dentro do Herdr (sddharness start). HERDR_ENV=1 ausente");
   }
 }
 
@@ -120,6 +122,7 @@ function startAgent(role, executor, paneId, agentCfg) {
   const extras = providerFor(executor).buildStartArgs({
     model: agentCfg.model,
     mode: agentCfg.mode,
+    effort: agentCfg.effort,
     capabilities: agentCfg.capabilities,
   });
   const args = ["agent", "start", role, "--kind", executor, "--pane", paneId];
@@ -253,6 +256,7 @@ async function cmdRun(args, cfg) {
     harnessRoot: ROOT,
     worktree: args.cwd,
     capabilities: agentCfg.capabilities,
+    effort: agentCfg.effort,
   });
   const user = args.prompt && args.prompt !== true ? String(args.prompt) : `Execute ${role}.`;
   const result = promptWait(role, `${preamble}\n\n${user}`);
@@ -275,7 +279,11 @@ function usage() {
 async function main(argv) {
   const args = parseArgs(argv);
   const cmd = args._[0];
-  const cfg = readConfig();
+  const cfg = readConfig({
+    feature: args.feature && args.feature !== true ? String(args.feature) : null,
+    cwd: args.cwd && args.cwd !== true ? String(args.cwd) : ROOT,
+    repo: args.cwd && args.cwd !== true ? String(args.cwd) : ROOT,
+  });
   if (cmd === "spawn") await cmdSpawn(args, cfg);
   else if (cmd === "prompt") {
     requireHerdrRuntime(cfg);

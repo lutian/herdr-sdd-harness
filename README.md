@@ -120,13 +120,21 @@ cd herdr-sdd-harness
 
 ## 3. Instalar o CLI e criar um workspace
 
-Na pasta deste repo (o instalador):
+Na pasta deste repo (o instalador). Use `node bin/sddharness` — assim
+você roda **este** clone, não um pacote antigo do cache do npm:
 
 ```bash
-npm exec sddharness workspace create meu-time
-npm exec sddharness repo add /caminho/do-repo-a
-npm exec sddharness repo add /caminho/do-repo-b
-npm exec sddharness start
+node bin/sddharness workspace create meu-time
+node bin/sddharness repo add /caminho/do-repo-a
+node bin/sddharness repo add /caminho/do-repo-b
+node bin/sddharness start
+```
+
+`npm exec sddharness` só é seguro nesta pasta. Fora dela o npm pode
+baixar outro `sddharness`. Se um `start` antigo deixou lock:
+
+```bash
+node bin/sddharness unlock
 ```
 
 `init <path>` continua instalando artefatos no repo (e liga ao workspace
@@ -161,7 +169,7 @@ Só pelo CLI / slash — sem `cd` no repo e sem `node …/config.mjs`:
 /sddharness config list --task PROJ-123
 ```
 
-O mesmo no terminal: `npm exec sddharness config …`. Overlay `--task` / `--feature` não muda o default global. Resolução: feature → tarefa → workspace → home.
+O mesmo no terminal: `node bin/sddharness config …`. Overlay `--task` / `--feature` não muda o default global. Resolução: feature → tarefa → workspace → home.
 
 | Papel | Quem executa | Função |
 |-------|----------------|--------|
@@ -176,7 +184,7 @@ O mesmo no terminal: `npm exec sddharness config …`. Overlay `--task` / `--fea
 No seu projeto (ou em qualquer repo do workspace):
 
 ```bash
-npm exec sddharness start
+node bin/sddharness start
 ```
 
 Cria um workspace/pane no Herdr, inicia o leader (`agent start … --pane`)
@@ -210,7 +218,7 @@ No chat, `Sim`, `Aprovo` e `pode continuar` valem como o próximo passo.
 
 - [ ] As quatro CLIs respondem no terminal.
 - [ ] `config list` mostra `runtime: herdr`.
-- [ ] `npm exec sddharness start` abriu o Herdr e o leader no executor do config.
+- [ ] `node bin/sddharness start` abriu o Herdr e o leader no executor do config.
 - [ ] Tarefa nova pediu Jira ou a descrição; pendente retomou o estado.
 
 ## 6. Comandos que você usa
@@ -287,5 +295,5 @@ Regras que o leader segue:
 
 ## Próximo passo
 
-Instale as quatro ferramentas, crie o workspace com `npm exec sddharness`
-e rode `npm exec sddharness start`. `/sddharness usage` mostra a cota.
+Instale as quatro ferramentas, crie o workspace com `node bin/sddharness`
+e rode `node bin/sddharness start`. `/sddharness usage` mostra a cota.

@@ -21,6 +21,7 @@ import {
   createWorkspace,
   listWorkspaces,
   readWorkspace,
+  getCurrentName,
   releaseLock,
   removeRepo,
   requireCurrent,
@@ -39,6 +40,7 @@ const TEMPLATE = join(KIT_ROOT, "template");
 function usage() {
   console.log(`Usage:
   sddharness start [--print]
+  sddharness unlock [nome]
   sddharness workspace create|list|use [nome]
   sddharness repo add|list|remove <path|id>
   sddharness init <destino>          # instala artefatos no repo (+ repo add se houver workspace)
@@ -191,7 +193,7 @@ function cmdInit(destArg) {
   console.log(`
 Próximos passos:
   1. npm exec sddharness workspace create <nome>   (se ainda não tiver)
-  2. npm exec sddharness start
+  2. node bin/sddharness start
      (abre o Herdr, o pane e o leader — sem /sddharness init)
 `);
 }
@@ -275,6 +277,14 @@ function resolvedConfig(extra = {}) {
   });
 }
 
+function cmdUnlock(nameArg) {
+  const home = homeEnv();
+  const name = nameArg || getCurrentName(home);
+  if (!name) fail("nenhum workspace — sddharness unlock <nome>");
+  releaseLock(name, home);
+  console.log(`[OK]    lock removido: ${name}`);
+}
+
 function cmdStart(argv) {
   const printOnly = argv.includes("--print");
   const cfg = resolvedConfig();
@@ -282,7 +292,6 @@ function cmdStart(argv) {
   try {
     plan = planStart(cfg, {
       home: homeEnv(),
-      lock: !printOnly,
       cwd: process.cwd(),
     });
   } catch (err) {
@@ -290,22 +299,18 @@ function cmdStart(argv) {
   }
   console.log(formatStartPlan(plan));
   if (printOnly) return;
-  let status = 1;
   try {
-    status = executeStart(plan, {
+    const status = executeStart(plan, {
       env: {
         ...process.env,
         SDDHARNESS_SESSION: plan.session,
         SDDHARNESS_BOOT_PROMPT: plan.bootPromptPath,
       },
     });
+    process.exit(status);
   } catch (err) {
-    console.error(`[FAIL]  ${err.message}`);
-    status = 1;
-  } finally {
-    releaseLock(plan.workspace, homeEnv());
+    fail(err.message);
   }
-  process.exit(status);
 }
 
 function probeFromEnv(executor, env) {
@@ -395,6 +400,9 @@ switch (cmd) {
     break;
   case "start":
     cmdStart(rest);
+    break;
+  case "unlock":
+    cmdUnlock(rest[0]);
     break;
   case "usage":
   case "quota":

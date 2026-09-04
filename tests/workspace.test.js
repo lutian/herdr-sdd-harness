@@ -74,6 +74,7 @@ describe("workspace CRUD + lock", () => {
     assert.equal(r.status, 0, r.stderr + r.stdout);
     r = spawnSync(process.execPath, [CLI, "workspace", "list"], { encoding: "utf8", env });
     assert.match(r.stdout, /plat/);
+    acquireLock("plat", { pid: 3185444, now: Date.now(), alive: () => true }, h);
     r = spawnSync(process.execPath, [CLI, "start", "--print"], { encoding: "utf8", env });
     assert.equal(r.status, 0, r.stderr);
     assert.match(r.stdout, /herdr workspace create --cwd/);

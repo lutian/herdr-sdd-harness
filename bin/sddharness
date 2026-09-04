@@ -21,6 +21,7 @@ import {
   createWorkspace,
   listWorkspaces,
   readWorkspace,
+  releaseLock,
   removeRepo,
   requireCurrent,
   useWorkspace,
@@ -289,18 +290,22 @@ function cmdStart(argv) {
   }
   console.log(formatStartPlan(plan));
   if (printOnly) return;
+  let status = 1;
   try {
-    const status = executeStart(plan, {
+    status = executeStart(plan, {
       env: {
         ...process.env,
         SDDHARNESS_SESSION: plan.session,
         SDDHARNESS_BOOT_PROMPT: plan.bootPromptPath,
       },
     });
-    process.exit(status);
   } catch (err) {
-    fail(err.message);
+    console.error(`[FAIL]  ${err.message}`);
+    status = 1;
+  } finally {
+    releaseLock(plan.workspace, homeEnv());
   }
+  process.exit(status);
 }
 
 function probeFromEnv(executor, env) {

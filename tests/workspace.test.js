@@ -42,10 +42,20 @@ describe("workspace CRUD + lock", () => {
     const ws = requireCurrent(h);
     const added = addRepo(ws, repo, { id: "api" }, h);
     assert.equal(added.repo.id, "api");
-    acquireLock("yooga", { pid: 9, now: 1000 }, h);
-    assert.throws(() => acquireLock("yooga", { pid: 10, now: 2000 }, h), /travado/);
+    acquireLock("yooga", { pid: 9, now: 1000, alive: () => true }, h);
+    assert.throws(
+      () => acquireLock("yooga", { pid: 10, now: 2000, alive: () => true }, h),
+      /travado/
+    );
     releaseLock("yooga", h);
-    acquireLock("yooga", { pid: 10, now: 3000 }, h);
+    acquireLock("yooga", { pid: 10, now: 3000, alive: () => true }, h);
+  });
+
+  it("steals lock when holder pid is dead", () => {
+    const h = home();
+    createWorkspace("ops", h);
+    acquireLock("ops", { pid: 3185444, now: 1000, alive: () => false }, h);
+    acquireLock("ops", { pid: 20, now: 2000, alive: (p) => p === 20 }, h);
   });
 
   it("CLI workspace/repo + start --print", () => {

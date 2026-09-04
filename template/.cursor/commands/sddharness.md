@@ -57,7 +57,8 @@ Frases canônicas:
 
 Arnês em `sddharness/`; código no worktree (`.worktrees/`).
 
-Se `runtime=herdr`: workers via `node sddharness/scripts/herdr-agent.mjs run`.
+Se `runtime=herdr`: workers via `node sddharness/scripts/herdr-agent.mjs run --feature <name>`.
+Nome Herdr = `<role>-<feature>` (ex.: `implementer-feature-01`) para paralelo.
 Herdr **não** cria worktrees. Exits 2/3/4 = blocked / nenhum executor / perguntar.
 
 ## Roteamento

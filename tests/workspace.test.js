@@ -284,8 +284,9 @@ describe("boot plan", () => {
       run,
     });
     assert.equal(status, 0);
-    assert.equal(calls[0][0], "workspace");
-    assert.deepEqual(calls[1].slice(0, 7), [
+    assert.deepEqual(calls[0], ["agent", "list"]);
+    assert.equal(calls[1][0], "workspace");
+    assert.deepEqual(calls[2].slice(0, 7), [
       "agent",
       "start",
       "leader",
@@ -294,7 +295,43 @@ describe("boot plan", () => {
       "--pane",
       "w9:p1",
     ]);
-    assert.equal(calls[2][0], "agent");
+    assert.equal(calls[3][0], "agent");
+    assert.equal(calls[3][1], "prompt");
+  });
+
+  it("executeStart reuses an existing leader instead of starting again", () => {
+    const h = home();
+    createWorkspace("boot2", h);
+    const repo = mkdtempSync(join(tmpdir(), "sdd-repo-"));
+    homes.push(repo);
+    addRepo(requireCurrent(h), repo, { id: "api" }, h);
+    const plan = planStart(
+      { agents: { leader: { executor: "claude", effort: "medium" } } },
+      { home: h, lock: false }
+    );
+    const calls = [];
+    const run = (args) => {
+      calls.push(args);
+      if (args[0] === "agent" && args[1] === "list") {
+        return {
+          status: 0,
+          stdout: JSON.stringify({
+            result: { agents: [{ name: "leader", pane_id: "w1:p3" }] },
+          }),
+        };
+      }
+      return { status: 0, stdout: "{}" };
+    };
+    const status = executeStart(plan, {
+      env: { ...process.env, HERDR_ENV: "1" },
+      attach: false,
+      ensure: () => true,
+      run,
+    });
+    assert.equal(status, 0);
+    assert.ok(!calls.some((a) => a[0] === "workspace"));
+    assert.ok(!calls.some((a) => a[1] === "start"));
+    assert.deepEqual(calls[1], ["agent", "focus", "leader"]);
     assert.equal(calls[2][1], "prompt");
   });
 });

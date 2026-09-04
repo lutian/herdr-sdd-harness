@@ -196,6 +196,8 @@ O dir `~/.sddharness/workspaces/<nome>` só guarda metadados (`boot-prompt.md`,
 
 Se o servidor Herdr não estiver no ar, o start tenta subi-lo; no fim
 anexa o TUI (`herdr`) se você não estiver já dentro de um pane.
+Se já existir um agente chamado `leader`, o start **reusa** (focus + prompt)
+em vez de criar outro. Para soltar o nome: `herdr agent rename leader --clear`.
 
 Se houver tarefa/feature pendente, retoma; senão começa uma **tarefa nova**.
 Não precisa de `/sddharness init` no chat (`/sddharness init` é só atalho).

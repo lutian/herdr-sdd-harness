@@ -55,7 +55,8 @@ Frases canônicas:
 - `Criando o worktree "{worktreeBranch}"…`
 - `Fazendo merge do worktree "{worktreeBranch}" na branch "{parentBranch}"…`
 
-Se `runtime=herdr`: workers via `node sddharness/scripts/herdr-agent.mjs run`.
+Se `runtime=herdr`: workers via `node sddharness/scripts/herdr-agent.mjs run --feature <name>`.
+Nome Herdr = `<role>-<feature>` (ex.: `implementer-feature-01`) para paralelo.
 Nunca lance implementer com prompt longo — use o `coordinator`.
 Exits 2/3/4 = blocked / nenhum executor / perguntar.
 

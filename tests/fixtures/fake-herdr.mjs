@@ -40,6 +40,16 @@ if (args[0] === "pane" && args[1] === "split") {
   process.exit(0);
 }
 
+if (args[0] === "agent" && args[1] === "list") {
+  const agents = Object.entries(state.agents || {}).map(([name, a]) => ({
+    name,
+    pane_id: a.pane,
+    agent_status: a.status,
+  }));
+  out({ result: { agents } });
+  process.exit(0);
+}
+
 if (args[0] === "agent" && args[1] === "start") {
   const name = args[2];
   const kindIdx = args.indexOf("--kind");

@@ -117,15 +117,83 @@ describe("herdr-agent.mjs", () => {
   it("spawn splits, starts and prints pane", () => {
     const ctx = setup();
     dirs.push(ctx.dir);
-    const r = run(ctx, ["spawn", "--role", "implementer", "--cwd", ctx.dir]);
+    const r = run(ctx, [
+      "spawn",
+      "--role",
+      "implementer",
+      "--cwd",
+      ctx.dir,
+      "--feature",
+      "feature-01",
+    ]);
     assert.equal(r.status, 0, r.stderr + r.stdout);
     const json = JSON.parse(r.stdout);
     assert.equal(json.role, "implementer");
+    assert.equal(json.name, "implementer-feature-01");
     assert.equal(json.executor, "codex");
     assert.match(json.paneId, /^w1:p/);
     const log = readFileSync(ctx.log, "utf8");
     assert.match(log, /pane split/);
-    assert.match(log, /agent start implementer --kind codex/);
+    assert.match(log, /agent start implementer-feature-01 --kind codex/);
+  });
+
+  it("spawn two features uses distinct herdr names", () => {
+    const ctx = setup();
+    dirs.push(ctx.dir);
+    const a = run(ctx, [
+      "spawn",
+      "--role",
+      "implementer",
+      "--cwd",
+      ctx.dir,
+      "--feature",
+      "feature-01",
+    ]);
+    const b = run(ctx, [
+      "spawn",
+      "--role",
+      "implementer",
+      "--cwd",
+      ctx.dir,
+      "--feature",
+      "feature-02",
+    ]);
+    assert.equal(a.status, 0, a.stderr);
+    assert.equal(b.status, 0, b.stderr);
+    assert.equal(JSON.parse(a.stdout).name, "implementer-feature-01");
+    assert.equal(JSON.parse(b.stdout).name, "implementer-feature-02");
+    const log = readFileSync(ctx.log, "utf8");
+    assert.match(log, /agent start implementer-feature-01/);
+    assert.match(log, /agent start implementer-feature-02/);
+  });
+
+  it("spawn reuses pane when the feature agent already exists", () => {
+    const ctx = setup();
+    dirs.push(ctx.dir);
+    const first = run(ctx, [
+      "spawn",
+      "--role",
+      "implementer",
+      "--cwd",
+      ctx.dir,
+      "--feature",
+      "feature-01",
+    ]);
+    assert.equal(first.status, 0, first.stderr);
+    const pane = JSON.parse(first.stdout).paneId;
+    const second = run(ctx, [
+      "spawn",
+      "--role",
+      "implementer",
+      "--cwd",
+      ctx.dir,
+      "--feature",
+      "feature-01",
+    ]);
+    assert.equal(second.status, 0, second.stderr);
+    assert.equal(JSON.parse(second.stdout).paneId, pane);
+    const splits = readFileSync(ctx.log, "utf8").split("pane split").length - 1;
+    assert.equal(splits, 1);
   });
 
   it("run reads canonical line after idle", () => {
@@ -137,6 +205,8 @@ describe("herdr-agent.mjs", () => {
       "implementer",
       "--cwd",
       ctx.dir,
+      "--feature",
+      "feature-01",
       "--prompt",
       "Implemente feature-01",
     ]);
@@ -149,7 +219,17 @@ describe("herdr-agent.mjs", () => {
     dirs.push(ctx.dir);
     const r = run(
       ctx,
-      ["run", "--role", "implementer", "--cwd", ctx.dir, "--prompt", "BLOCKED now"],
+      [
+        "run",
+        "--role",
+        "implementer",
+        "--cwd",
+        ctx.dir,
+        "--feature",
+        "feature-01",
+        "--prompt",
+        "BLOCKED now",
+      ],
       { HERDR_FAKE_BLOCKED: "1" }
     );
     assert.equal(r.status, 2, r.stderr + r.stdout);
@@ -161,10 +241,18 @@ describe("herdr-agent.mjs", () => {
   it("cursor start extras include model and mode", () => {
     const ctx = setup();
     dirs.push(ctx.dir);
-    const r = run(ctx, ["spawn", "--role", "spec_author", "--cwd", ctx.dir]);
+    const r = run(ctx, [
+      "spawn",
+      "--role",
+      "spec_author",
+      "--cwd",
+      ctx.dir,
+      "--feature",
+      "feature-01",
+    ]);
     assert.equal(r.status, 0, r.stderr + r.stdout);
     const log = readFileSync(ctx.log, "utf8");
-    assert.match(log, /agent start spec_author --kind cursor/);
+    assert.match(log, /agent start spec_author-feature-01 --kind cursor/);
     assert.match(log, /-- --model grok-4.6 --mode plan/);
   });
 

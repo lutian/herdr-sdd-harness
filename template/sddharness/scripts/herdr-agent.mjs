@@ -104,6 +104,12 @@ async function pickExecutor(cfg, role, override) {
   return result.executor;
 }
 
+export function agentName(role, feature) {
+  const feat = feature && feature !== true ? String(feature) : "";
+  if (!feat) return role;
+  return `${role}-${feat}`.toLowerCase().replace(/[^a-z0-9_-]/g, "-").slice(0, 32);
+}
+
 function providerFor(executor) {
   return createProviders()[executor];
 }
@@ -118,17 +124,30 @@ function splitPane(cwd) {
   return paneId;
 }
 
-function startAgent(role, executor, paneId, agentCfg) {
+function startAgent(name, executor, paneId, agentCfg) {
   const extras = providerFor(executor).buildStartArgs({
     model: agentCfg.model,
     mode: agentCfg.mode,
     effort: agentCfg.effort,
     capabilities: agentCfg.capabilities,
   });
-  const args = ["agent", "start", role, "--kind", executor, "--pane", paneId];
+  const args = ["agent", "start", name, "--kind", executor, "--pane", paneId];
   if (extras.length) args.push("--", ...extras);
   const r = herdr(args);
   if (r.status !== 0) fail(`herdr agent start falhou: ${(r.stderr || r.stdout || "").trim()}`);
+}
+
+function existingAgent(name) {
+  const json = parseJson(herdr(["agent", "list"]).stdout);
+  return (json?.result?.agents || []).find((a) => a.name === name) || null;
+}
+
+function ensureAgent(name, executor, cwd, agentCfg) {
+  const hit = existingAgent(name);
+  if (hit?.pane_id) return hit.pane_id;
+  const paneId = splitPane(cwd);
+  startAgent(name, executor, paneId, agentCfg);
+  return paneId;
 }
 
 function recordAgent({ feature, role, executor, paneId, model, resolved }) {
@@ -157,8 +176,8 @@ export function cmdSpawn(args, cfg) {
   const role = args.role;
   if (!role) fail("usage: spawn --role <role> --cwd <abs> [--feature feature-01]");
   return pickExecutor(cfg, role, args.executor).then((executor) => {
-    const paneId = splitPane(args.cwd);
-    startAgent(role, executor, paneId, cfg.agents?.[role] || {});
+    const name = agentName(role, args.feature);
+    const paneId = ensureAgent(name, executor, args.cwd, cfg.agents?.[role] || {});
     recordAgent({
       feature: args.feature,
       role,
@@ -167,16 +186,16 @@ export function cmdSpawn(args, cfg) {
       model: cfg.agents?.[role]?.model,
       resolved: executor !== (cfg.agents?.[role]?.executor || executor) ? executor : undefined,
     });
-    console.log(JSON.stringify({ role, executor, paneId }, null, 2));
-    return { role, executor, paneId };
+    console.log(JSON.stringify({ role, name, executor, paneId }, null, 2));
+    return { role, name, executor, paneId };
   });
 }
 
-function promptWait(role, prompt) {
+function promptWait(name, prompt) {
   const r = herdr([
     "agent",
     "prompt",
-    role,
+    name,
     prompt,
     "--wait",
     "--until",
@@ -198,10 +217,11 @@ function promptWait(role, prompt) {
 function cmdPrompt(args) {
   const role = args.role;
   const prompt = args.prompt;
-  if (!role || !prompt) fail("usage: prompt --role <role> --prompt '...'");
-  const result = promptWait(role, String(prompt));
+  if (!role || !prompt) fail("usage: prompt --role <role> --prompt '...' [--feature feature-01]");
+  const name = agentName(role, args.feature);
+  const result = promptWait(name, String(prompt));
   if (result.blocked) {
-    cmdRead({ role, lines: args.lines || 80 });
+    cmdRead({ role, feature: args.feature, lines: args.lines || 80 });
     process.exit(EXIT_BLOCKED);
   }
   if (result.stdout) process.stdout.write(result.stdout);
@@ -209,19 +229,21 @@ function cmdPrompt(args) {
 
 function cmdWait(args) {
   const role = args.role;
-  if (!role) fail("usage: wait --role <role>");
-  const r = herdr(["agent", "wait", role, "--until", "idle", "--until", "done", "--until", "blocked"]);
+  if (!role) fail("usage: wait --role <role> [--feature feature-01]");
+  const name = agentName(role, args.feature);
+  const r = herdr(["agent", "wait", name, "--until", "idle", "--until", "done", "--until", "blocked"]);
   process.stdout.write(r.stdout || "");
   if (r.status !== 0) process.exit(r.status ?? 1);
 }
 
 function cmdRead(args) {
   const role = args.role;
-  if (!role) fail("usage: read --role <role>");
+  if (!role) fail("usage: read --role <role> [--feature feature-01]");
+  const name = agentName(role, args.feature);
   const r = herdr([
     "agent",
     "read",
-    role,
+    name,
     "--source",
     "recent-unwrapped",
     "--lines",
@@ -236,9 +258,9 @@ async function cmdRun(args, cfg) {
   const role = args.role;
   if (!role) fail("usage: run --role <role> --cwd <abs> [--feature feature-01] [--prompt '...']");
   const executor = await pickExecutor(cfg, role, args.executor);
-  const paneId = splitPane(args.cwd);
+  const name = agentName(role, args.feature);
   const agentCfg = cfg.agents?.[role] || {};
-  startAgent(role, executor, paneId, agentCfg);
+  const paneId = ensureAgent(name, executor, args.cwd, agentCfg);
   recordAgent({
     feature: args.feature,
     role,
@@ -259,20 +281,20 @@ async function cmdRun(args, cfg) {
     effort: agentCfg.effort,
   });
   const user = args.prompt && args.prompt !== true ? String(args.prompt) : `Execute ${role}.`;
-  const result = promptWait(role, `${preamble}\n\n${user}`);
+  const result = promptWait(name, `${preamble}\n\n${user}`);
   if (result.blocked) {
-    cmdRead({ role, lines: 80 });
+    cmdRead({ role, feature: args.feature, lines: 80 });
     process.exit(EXIT_BLOCKED);
   }
-  cmdRead({ role, lines: args.lines || 120 });
+  cmdRead({ role, feature: args.feature, lines: args.lines || 120 });
 }
 
 function usage() {
   console.log(`Usage:
   herdr-agent.mjs spawn --role <role> --cwd <abs> [--feature feature-01]
-  herdr-agent.mjs prompt --role <role> --prompt "..."
-  herdr-agent.mjs wait --role <role>
-  herdr-agent.mjs read --role <role>
+  herdr-agent.mjs prompt --role <role> --prompt "..." [--feature feature-01]
+  herdr-agent.mjs wait --role <role> [--feature feature-01]
+  herdr-agent.mjs read --role <role> [--feature feature-01]
   herdr-agent.mjs run --role <role> --cwd <abs> [--feature feature-01] [--prompt "..."]`);
 }
 

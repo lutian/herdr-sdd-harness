@@ -120,12 +120,13 @@ cd herdr-sdd-harness
 
 ## 3. Instalar o CLI e criar um workspace
 
+Na pasta deste repo (o instalador):
+
 ```bash
-npm link
-sddharness workspace create meu-time
-sddharness repo add /caminho/do-repo-a
-sddharness repo add /caminho/do-repo-b
-sddharness start
+npm exec sddharness workspace create meu-time
+npm exec sddharness repo add /caminho/do-repo-a
+npm exec sddharness repo add /caminho/do-repo-b
+npm exec sddharness start
 ```
 
 `init <path>` continua instalando artefatos no repo (e liga ao workspace
@@ -160,7 +161,7 @@ Só pelo CLI / slash — sem `cd` no repo e sem `node …/config.mjs`:
 /sddharness config list --task PROJ-123
 ```
 
-O mesmo no terminal: `sddharness config …`. Overlay `--task` / `--feature` não muda o default global. Resolução: feature → tarefa → workspace → home.
+O mesmo no terminal: `npm exec sddharness config …`. Overlay `--task` / `--feature` não muda o default global. Resolução: feature → tarefa → workspace → home.
 
 | Papel | Quem executa | Função |
 |-------|----------------|--------|
@@ -175,12 +176,16 @@ O mesmo no terminal: `sddharness config …`. Overlay `--task` / `--feature` nã
 No seu projeto (ou em qualquer repo do workspace):
 
 ```bash
-sddharness start
+npm exec sddharness start
 ```
 
-Sobe o Herdr e o leader no CLI configurado. Se houver tarefa/feature
-pendente, retoma; senão começa uma **tarefa nova**. Não precisa de
-`/sddharness init` no chat (`/sddharness init` é só atalho opcional).
+Cria um workspace/pane no Herdr, inicia o leader (`agent start … --pane`)
+e manda o prompt da sessão. Se o servidor Herdr não estiver no ar, o
+start tenta subi-lo; no fim anexa o TUI (`herdr`) se você não estiver
+já dentro de um pane.
+
+Se houver tarefa/feature pendente, retoma; senão começa uma **tarefa nova**.
+Não precisa de `/sddharness init` no chat (`/sddharness init` é só atalho).
 
 Responda às perguntas. O fluxo típico é este:
 
@@ -205,7 +210,7 @@ No chat, `Sim`, `Aprovo` e `pode continuar` valem como o próximo passo.
 
 - [ ] As quatro CLIs respondem no terminal.
 - [ ] `config list` mostra `runtime: herdr`.
-- [ ] `sddharness start` abriu o leader no executor do config global.
+- [ ] `npm exec sddharness start` abriu o Herdr e o leader no executor do config.
 - [ ] Tarefa nova pediu Jira ou a descrição; pendente retomou o estado.
 
 ## 6. Comandos que você usa
@@ -282,5 +287,5 @@ Regras que o leader segue:
 
 ## Próximo passo
 
-Instale as quatro ferramentas, `npm link`, crie o workspace e
-`sddharness start`. `/sddharness usage` mostra a cota.
+Instale as quatro ferramentas, crie o workspace com `npm exec sddharness`
+e rode `npm exec sddharness start`. `/sddharness usage` mostra a cota.

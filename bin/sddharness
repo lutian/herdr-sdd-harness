@@ -25,7 +25,7 @@ import {
   requireCurrent,
   useWorkspace,
 } from "../lib/workspace.mjs";
-import { planStart } from "../lib/boot.mjs";
+import { executeStart, formatStartPlan, planStart } from "../lib/boot.mjs";
 import { formatUsage } from "../lib/quota.mjs";
 import { checkWave, classifyBand, DEFAULT_QUOTA } from "../lib/quota.mjs";
 import { EXECUTORS } from "../template/sddharness/scripts/runtime/provider.mjs";
@@ -189,9 +189,9 @@ function cmdInit(destArg) {
   }
   console.log(`
 Próximos passos:
-  1. sddharness workspace create <nome>   (se ainda não tiver)
-  2. sddharness start
-     (abre o leader e começa ou retoma a tarefa — sem /sddharness init)
+  1. npm exec sddharness workspace create <nome>   (se ainda não tiver)
+  2. npm exec sddharness start
+     (abre o Herdr, o pane e o leader — sem /sddharness init)
 `);
 }
 
@@ -287,25 +287,20 @@ function cmdStart(argv) {
   } catch (err) {
     fail(err.message);
   }
-  const line = ["herdr", ...plan.leaderArgs].join(" ");
-  const sessionWord = plan.session === "resume" ? "pendente" : "nova";
-  console.log(`[OK]    workspace ${plan.workspace}`);
-  console.log(`[OK]    cwd ${plan.cwd}`);
-  console.log(`[OK]    sessão ${sessionWord}`);
-  console.log(line);
-  console.log(plan.prompt);
+  console.log(formatStartPlan(plan));
   if (printOnly) return;
-  const r = spawnSync("herdr", plan.leaderArgs, {
-    cwd: plan.cwd,
-    stdio: "inherit",
-    env: {
-      ...process.env,
-      HERDR_ENV: "1",
-      SDDHARNESS_SESSION: plan.session,
-      SDDHARNESS_BOOT_PROMPT: plan.bootPromptPath,
-    },
-  });
-  process.exit(r.status ?? 1);
+  try {
+    const status = executeStart(plan, {
+      env: {
+        ...process.env,
+        SDDHARNESS_SESSION: plan.session,
+        SDDHARNESS_BOOT_PROMPT: plan.bootPromptPath,
+      },
+    });
+    process.exit(status);
+  } catch (err) {
+    fail(err.message);
+  }
 }
 
 function probeFromEnv(executor, env) {

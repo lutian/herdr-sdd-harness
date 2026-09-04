@@ -15,7 +15,7 @@ import {
   useWorkspace,
 } from "../lib/workspace.mjs";
 import { assignRepo, canRunParallel, materializeRepoList, nextFeatureName } from "../lib/features.mjs";
-import { planStart } from "../lib/boot.mjs";
+import { executeStart, planStart } from "../lib/boot.mjs";
 
 const KIT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const CLI = join(KIT, "bin", "sddharness");
@@ -66,7 +66,8 @@ describe("workspace CRUD + lock", () => {
     assert.match(r.stdout, /plat/);
     r = spawnSync(process.execPath, [CLI, "start", "--print"], { encoding: "utf8", env });
     assert.equal(r.status, 0, r.stderr);
-    assert.match(r.stdout, /herdr agent start leader --kind claude/);
+    assert.match(r.stdout, /herdr workspace create --cwd/);
+    assert.match(r.stdout, /herdr agent start leader --kind claude --pane/);
     assert.match(r.stdout, /sessão nova/);
     r = spawnSync(process.execPath, [CLI, "usage"], {
       encoding: "utf8",
@@ -164,7 +165,7 @@ describe("start session", () => {
       env: { ...process.env, SDDHARNESS_HOME: h },
     });
     assert.equal(r.status, 0, r.stderr);
-    assert.match(r.stdout, /herdr agent start leader --kind cursor/);
+    assert.match(r.stdout, /herdr agent start leader --kind cursor --pane/);
     assert.match(r.stdout, /pendente/);
   });
 });
@@ -184,12 +185,16 @@ describe("boot plan", () => {
       "leader",
       "--kind",
       "codex",
+      "--pane",
+      "<root>",
       "--",
       "-m",
       "gpt-5.6-sol",
       "-c",
       "model_reasoning_effort=high",
     ]);
+    assert.equal(plan.workspaceCreateArgs[0], "workspace");
+    assert.equal(plan.workspaceCreateArgs[1], "create");
   });
 
   it("builds herdr leader args for opencode", () => {
@@ -206,11 +211,52 @@ describe("boot plan", () => {
       "leader",
       "--kind",
       "opencode",
+      "--pane",
+      "<root>",
       "--",
       "-m",
       "openai/gpt-5",
       "--variant",
       "max",
     ]);
+  });
+
+  it("executeStart creates pane then starts leader with --pane", () => {
+    const h = home();
+    createWorkspace("boot", h);
+    const plan = planStart(
+      { agents: { leader: { executor: "claude", effort: "medium" } } },
+      { home: h, lock: false }
+    );
+    const calls = [];
+    const run = (args) => {
+      calls.push(args);
+      if (args[0] === "workspace") {
+        return {
+          status: 0,
+          stdout: JSON.stringify({ result: { root_pane: { pane_id: "w9:p1" } } }),
+        };
+      }
+      return { status: 0, stdout: "{}" };
+    };
+    const status = executeStart(plan, {
+      env: { ...process.env, HERDR_ENV: "1" },
+      attach: false,
+      ensure: () => true,
+      run,
+    });
+    assert.equal(status, 0);
+    assert.equal(calls[0][0], "workspace");
+    assert.deepEqual(calls[1].slice(0, 7), [
+      "agent",
+      "start",
+      "leader",
+      "--kind",
+      "claude",
+      "--pane",
+      "w9:p1",
+    ]);
+    assert.equal(calls[2][0], "agent");
+    assert.equal(calls[2][1], "prompt");
   });
 });

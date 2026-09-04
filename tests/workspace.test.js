@@ -77,7 +77,8 @@ describe("workspace CRUD + lock", () => {
     acquireLock("plat", { pid: 3185444, now: Date.now(), alive: () => true }, h);
     r = spawnSync(process.execPath, [CLI, "start", "--print"], { encoding: "utf8", env });
     assert.equal(r.status, 0, r.stderr);
-    assert.match(r.stdout, /herdr workspace create --cwd/);
+    assert.ok(r.stdout.includes(`herdr workspace create --cwd ${repo}`));
+    assert.doesNotMatch(r.stdout, /\[OK\]    cwd .*workspaces\/plat/);
     assert.match(r.stdout, /herdr agent start leader --kind claude --pane/);
     assert.match(r.stdout, /sessão nova/);
     r = spawnSync(process.execPath, [CLI, "usage"], {
@@ -147,9 +148,23 @@ describe("feature split", () => {
 });
 
 describe("start session", () => {
+  it("start --print fails without a repo", () => {
+    const h = home();
+    createWorkspace("empty", h);
+    const r = spawnSync(process.execPath, [CLI, "start", "--print"], {
+      encoding: "utf8",
+      env: { ...process.env, SDDHARNESS_HOME: h },
+    });
+    assert.notEqual(r.status, 0);
+    assert.match(r.stderr, /repo add/);
+  });
+
   it("start --print uses home leader.executor and classifies pendente", () => {
     const h = home();
     createWorkspace("plat", h);
+    const repo = mkdtempSync(join(tmpdir(), "sdd-repo-"));
+    homes.push(repo);
+    addRepo(requireCurrent(h), repo, { id: "api" }, h);
     writeFileSync(
       join(h, "config.json"),
       JSON.stringify({
@@ -178,6 +193,7 @@ describe("start session", () => {
     assert.equal(r.status, 0, r.stderr);
     assert.match(r.stdout, /herdr agent start leader --kind cursor --pane/);
     assert.match(r.stdout, /pendente/);
+    assert.ok(r.stdout.includes(`--cwd ${repo}`));
   });
 });
 
@@ -186,6 +202,9 @@ describe("boot plan", () => {
     const h = home();
     createWorkspace("w", h);
     useWorkspace("w", h);
+    const repo = mkdtempSync(join(tmpdir(), "sdd-repo-"));
+    homes.push(repo);
+    addRepo(requireCurrent(h), repo, { id: "api" }, h);
     const plan = planStart(
       { agents: { leader: { executor: "codex", model: "gpt-5.6-sol", effort: "high" } } },
       { home: h, lock: false }
@@ -206,12 +225,17 @@ describe("boot plan", () => {
     ]);
     assert.equal(plan.workspaceCreateArgs[0], "workspace");
     assert.equal(plan.workspaceCreateArgs[1], "create");
+    assert.equal(plan.cwd, repo);
+    assert.equal(plan.workspaceCreateArgs[3], repo);
   });
 
   it("builds herdr leader args for opencode", () => {
     const h = home();
     createWorkspace("w2", h);
     useWorkspace("w2", h);
+    const repo = mkdtempSync(join(tmpdir(), "sdd-repo-"));
+    homes.push(repo);
+    addRepo(requireCurrent(h), repo, { id: "api" }, h);
     const plan = planStart(
       { agents: { leader: { executor: "opencode", model: "openai/gpt-5", effort: "xhigh" } } },
       { home: h, lock: false }
@@ -235,6 +259,9 @@ describe("boot plan", () => {
   it("executeStart creates pane then starts leader with --pane", () => {
     const h = home();
     createWorkspace("boot", h);
+    const repo = mkdtempSync(join(tmpdir(), "sdd-repo-"));
+    homes.push(repo);
+    addRepo(requireCurrent(h), repo, { id: "api" }, h);
     const plan = planStart(
       { agents: { leader: { executor: "claude", effort: "medium" } } },
       { home: h, lock: false }

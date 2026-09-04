@@ -187,10 +187,15 @@ No seu projeto (ou em qualquer repo do workspace):
 node bin/sddharness start
 ```
 
-Cria um workspace/pane no Herdr, inicia o leader (`agent start … --pane`)
-e manda o prompt da sessão. Se o servidor Herdr não estiver no ar, o
-start tenta subi-lo; no fim anexa o TUI (`herdr`) se você não estiver
-já dentro de um pane.
+Cria um workspace/pane no Herdr **no repo** (o cwd, se for um repo do
+workspace; senão o primeiro de `repo list`). É nesse cwd que o Claude
+carrega `/sddharness` (`.claude/commands/`). Sem repo: `repo add` antes.
+
+O dir `~/.sddharness/workspaces/<nome>` só guarda metadados (`boot-prompt.md`,
+`feature_list.json`) — o leader não abre aí.
+
+Se o servidor Herdr não estiver no ar, o start tenta subi-lo; no fim
+anexa o TUI (`herdr`) se você não estiver já dentro de um pane.
 
 Se houver tarefa/feature pendente, retoma; senão começa uma **tarefa nova**.
 Não precisa de `/sddharness init` no chat (`/sddharness init` é só atalho).
